@@ -52,6 +52,7 @@ def parse_java_file(file_path, tdg):
                 return_type = get_type_name(node.return_type)
                 tdg.add_dependency(return_type, method_name)
                 tdg.add_dependency(method_name, return_type)
+            tdg.add_dependency(current_class, method_name)
             current_method = None
         elif isinstance(node, javalang.tree.VariableDeclarator):
             var_name = node.name
@@ -71,6 +72,13 @@ def parse_java_file(file_path, tdg):
                 field_type = get_type_name(node.type)
                 tdg.add_dependency(field_name, field_type)
                 tdg.add_dependency(field_type, field_name)
+        elif isinstance(node, javalang.tree.MethodInvocation):
+            invoked_method = f'{current_class}.{node.member}'
+            if current_method:
+                tdg.add_dependency(current_method, invoked_method)
+            else:
+                tdg.add_dependency(current_class, invoked_method)
+            tdg.add_dependency(invoked_method, current_class)
 
 def create_tdg_from_directory(directory):
     tdg = TypeDependencyGraph()
