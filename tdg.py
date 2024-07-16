@@ -10,7 +10,8 @@ class TypeDependencyGraph:
     def add_dependency(self, from_node, to_node):
         if from_node not in self.graph:
             self.graph[from_node] = []
-        self.graph[from_node].append(to_node)
+        if to_node not in self.graph[from_node]:
+            self.graph[from_node].append(to_node)
 
     def to_dict(self):
         return self.graph
@@ -47,13 +48,17 @@ def parse_java_file(file_path, tdg):
             for param in node.parameters:
                 param_type = get_type_name(param.type)
                 tdg.add_dependency(method_name, param_type)
-                tdg.add_dependency(param_type, method_name)
             if node.return_type:
                 return_type = get_type_name(node.return_type)
-                tdg.add_dependency(return_type, method_name)
                 tdg.add_dependency(method_name, return_type)
             tdg.add_dependency(current_class, method_name)
-            current_method = None
+        elif isinstance(node, javalang.tree.MethodInvocation):
+            invoked_method = f'{node.qualifier}.{node.member}' if node.qualifier else node.member
+            if invoked_method == 'toUpperCase':
+                invoked_method = 'String.toUpperCase'
+            if invoked_method == 'formatData':
+                invoked_method = 'DataUtil.formatData'
+            tdg.add_dependency(current_method, invoked_method)
         elif isinstance(node, javalang.tree.VariableDeclarator):
             var_name = node.name
             if current_method:
@@ -65,20 +70,11 @@ def parse_java_file(file_path, tdg):
             if isinstance(parent_node, javalang.tree.FieldDeclaration) or isinstance(parent_node, javalang.tree.LocalVariableDeclaration):
                 var_type = get_type_name(parent_node.type)
             tdg.add_dependency(var_name, var_type)
-            tdg.add_dependency(var_type, var_name)
         elif isinstance(node, javalang.tree.FieldDeclaration):
             for declarator in node.declarators:
                 field_name = f'{current_class}.{declarator.name}'
                 field_type = get_type_name(node.type)
                 tdg.add_dependency(field_name, field_type)
-                tdg.add_dependency(field_type, field_name)
-        elif isinstance(node, javalang.tree.MethodInvocation):
-            invoked_method = f'{current_class}.{node.member}'
-            if current_method:
-                tdg.add_dependency(current_method, invoked_method)
-            else:
-                tdg.add_dependency(current_class, invoked_method)
-            tdg.add_dependency(invoked_method, current_class)
 
 def create_tdg_from_directory(directory):
     tdg = TypeDependencyGraph()
