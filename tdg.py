@@ -53,11 +53,7 @@ def parse_java_file(file_path, tdg):
                 tdg.add_dependency(method_name, return_type)
             tdg.add_dependency(current_class, method_name)
         elif isinstance(node, javalang.tree.MethodInvocation):
-            invoked_method = f'{node.qualifier}.{node.member}' if node.qualifier else node.member
-            if invoked_method == 'toUpperCase':
-                invoked_method = 'String.toUpperCase'
-            if invoked_method == 'formatData':
-                invoked_method = 'DataUtil.formatData'
+            invoked_method = f'{node.qualifier}.{node.member}' if node.qualifier else f'{current_class}.{node.member}'
             tdg.add_dependency(current_method, invoked_method)
         elif isinstance(node, javalang.tree.VariableDeclarator):
             var_name = node.name
