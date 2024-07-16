@@ -20,77 +20,57 @@ def parse_java_file(file_path, tdg):
         code = file.read()
     tree = javalang.parse.parse(code)
 
-    class TypeVisitor(javalang.tree.Visitor):
-        def __init__(self, tdg):
-            self.tdg = tdg
-            self.current_class = None
-            self.current_method = None
+    def get_type_name(type_node):
+        if isinstance(type_node, javalang.tree.ReferenceType):
+            return type_node.name
+        elif isinstance(type_node, javalang.tree.BasicType):
+            return type_node.name
+        elif isinstance(type_node, javalang.tree.TypeArgument):
+            return get_type_name(type_node.type)
+        else:
+            return 'Unknown'
 
-        def visit_ClassDeclaration(self, node):
-            self.current_class = node.name
+    current_class = None
+    current_method = None
+
+    for path, node in tree:
+        if isinstance(node, javalang.tree.ClassDeclaration):
+            current_class = node.name
             if node.extends:
                 parent_class = node.extends.name
-                self.tdg.add_dependency(node.name, parent_class)
+                tdg.add_dependency(node.name, parent_class)
             else:
-                self.tdg.add_dependency(node.name, 'Object')  # Default to Object if no superclass is specified
-            self.visit_children(node)
-
-        def visit_MethodDeclaration(self, node):
-            method_name = f'{self.current_class}.{node.name}'
-            self.current_method = method_name
+                tdg.add_dependency(node.name, 'Object')
+        elif isinstance(node, javalang.tree.MethodDeclaration):
+            method_name = f'{current_class}.{node.name}'
+            current_method = method_name
             for param in node.parameters:
-                param_type = self.get_type_name(param.type)
-                self.tdg.add_dependency(method_name, param_type)
-                self.tdg.add_dependency(param_type, method_name)
+                param_type = get_type_name(param.type)
+                tdg.add_dependency(method_name, param_type)
+                tdg.add_dependency(param_type, method_name)
             if node.return_type:
-                return_type = self.get_type_name(node.return_type)
-                self.tdg.add_dependency(return_type, method_name)
-                self.tdg.add_dependency(method_name, return_type)
-            self.visit_children(node)
-            self.current_method = None
-
-        def visit_VariableDeclarator(self, node):
+                return_type = get_type_name(node.return_type)
+                tdg.add_dependency(return_type, method_name)
+                tdg.add_dependency(method_name, return_type)
+            current_method = None
+        elif isinstance(node, javalang.tree.VariableDeclarator):
             var_name = node.name
-            var_type = self.get_type_name(node.type)
-            if self.current_method:
-                var_name = f'{self.current_method}.{var_name}'
+            if current_method:
+                var_name = f'{current_method}.{var_name}'
             else:
-                var_name = f'{self.current_class}.{var_name}'
-            self.tdg.add_dependency(var_name, var_type)
-            self.tdg.add_dependency(var_type, var_name)
-            self.visit_children(node)
-
-        def visit_FieldDeclaration(self, node):
+                var_name = f'{current_class}.{var_name}'
+            var_type = 'Unknown'
+            parent_node = path[-1]
+            if isinstance(parent_node, javalang.tree.FieldDeclaration) or isinstance(parent_node, javalang.tree.LocalVariableDeclaration):
+                var_type = get_type_name(parent_node.type)
+            tdg.add_dependency(var_name, var_type)
+            tdg.add_dependency(var_type, var_name)
+        elif isinstance(node, javalang.tree.FieldDeclaration):
             for declarator in node.declarators:
-                field_name = f'{self.current_class}.{declarator.name}'
-                field_type = self.get_type_name(node.type)
-                self.tdg.add_dependency(field_name, field_type)
-                self.tdg.add_dependency(field_type, field_name)
-                self.visit(declarator)
-            self.visit_children(node)
-
-        def visit_LocalVariableDeclaration(self, node):
-            for declarator in node.declarators:
-                var_name = f'{self.current_method}.{declarator.name}'
-                var_type = self.get_type_name(node.type)
-                self.tdg.add_dependency(var_name, var_type)
-                self.tdg.add_dependency(var_type, var_name)
-                self.visit(declarator)
-            self.visit_children(node)
-
-        def get_type_name(self, type_node):
-            if isinstance(type_node, javalang.tree.ReferenceType):
-                return type_node.name
-            elif isinstance(type_node, javalang.tree.BasicType):
-                return type_node.name
-            elif isinstance(type_node, javalang.tree.TypeArgument):
-                return self.get_type_name(type_node.type)
-            else:
-                return 'Unknown'
-
-    visitor = TypeVisitor(tdg)
-    for path, node in tree:
-        visitor.visit(node)
+                field_name = f'{current_class}.{declarator.name}'
+                field_type = get_type_name(node.type)
+                tdg.add_dependency(field_name, field_type)
+                tdg.add_dependency(field_type, field_name)
 
 def create_tdg_from_directory(directory):
     tdg = TypeDependencyGraph()
