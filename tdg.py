@@ -1,70 +1,121 @@
 import os
-import json
-import sys
-from collections import defaultdict
 import javalang
+import json
+import argparse
 
-def create_type_dependency_graph(java_project_dir):
-    type_dependency_graph = defaultdict(lambda: {'dependencies': [], 'methods': []})
+class TypeDependencyGraph:
+    def __init__(self):
+        self.graph = {}
 
-    for root, _, files in os.walk(java_project_dir):
+    def add_dependency(self, from_node, to_node):
+        if from_node not in self.graph:
+            self.graph[from_node] = []
+        self.graph[from_node].append(to_node)
+
+    def to_dict(self):
+        return self.graph
+
+def parse_java_file(file_path, tdg):
+    with open(file_path, 'r') as file:
+        code = file.read()
+    tree = javalang.parse.parse(code)
+
+    class TypeVisitor(javalang.tree.Visitor):
+        def __init__(self, tdg):
+            self.tdg = tdg
+            self.current_class = None
+            self.current_method = None
+
+        def visit_ClassDeclaration(self, node):
+            self.current_class = node.name
+            if node.extends:
+                parent_class = node.extends.name
+                self.tdg.add_dependency(node.name, parent_class)
+            else:
+                self.tdg.add_dependency(node.name, 'Object')  # Default to Object if no superclass is specified
+            self.visit_children(node)
+
+        def visit_MethodDeclaration(self, node):
+            method_name = f'{self.current_class}.{node.name}'
+            self.current_method = method_name
+            for param in node.parameters:
+                param_type = self.get_type_name(param.type)
+                self.tdg.add_dependency(method_name, param_type)
+                self.tdg.add_dependency(param_type, method_name)
+            if node.return_type:
+                return_type = self.get_type_name(node.return_type)
+                self.tdg.add_dependency(return_type, method_name)
+                self.tdg.add_dependency(method_name, return_type)
+            self.visit_children(node)
+            self.current_method = None
+
+        def visit_VariableDeclarator(self, node):
+            var_name = node.name
+            var_type = self.get_type_name(node.type)
+            if self.current_method:
+                var_name = f'{self.current_method}.{var_name}'
+            else:
+                var_name = f'{self.current_class}.{var_name}'
+            self.tdg.add_dependency(var_name, var_type)
+            self.tdg.add_dependency(var_type, var_name)
+            self.visit_children(node)
+
+        def visit_FieldDeclaration(self, node):
+            for declarator in node.declarators:
+                field_name = f'{self.current_class}.{declarator.name}'
+                field_type = self.get_type_name(node.type)
+                self.tdg.add_dependency(field_name, field_type)
+                self.tdg.add_dependency(field_type, field_name)
+                self.visit(declarator)
+            self.visit_children(node)
+
+        def visit_LocalVariableDeclaration(self, node):
+            for declarator in node.declarators:
+                var_name = f'{self.current_method}.{declarator.name}'
+                var_type = self.get_type_name(node.type)
+                self.tdg.add_dependency(var_name, var_type)
+                self.tdg.add_dependency(var_type, var_name)
+                self.visit(declarator)
+            self.visit_children(node)
+
+        def get_type_name(self, type_node):
+            if isinstance(type_node, javalang.tree.ReferenceType):
+                return type_node.name
+            elif isinstance(type_node, javalang.tree.BasicType):
+                return type_node.name
+            elif isinstance(type_node, javalang.tree.TypeArgument):
+                return self.get_type_name(type_node.type)
+            else:
+                return 'Unknown'
+
+    visitor = TypeVisitor(tdg)
+    for path, node in tree:
+        visitor.visit(node)
+
+def create_tdg_from_directory(directory):
+    tdg = TypeDependencyGraph()
+
+    for root, _, files in os.walk(directory):
         for file in files:
             if file.endswith('.java'):
                 file_path = os.path.join(root, file)
-                with open(file_path, 'r') as java_file:
-                    content = java_file.read()
-                    tree = javalang.parse.parse(content)
-                    type_dependency_graph = extract_dependencies(tree, type_dependency_graph)
-    
-    return type_dependency_graph
+                parse_java_file(file_path, tdg)
 
-def extract_dependencies(tree, graph):
-    current_class = None
-    
-    for _, node in tree:
-        if isinstance(node, (javalang.tree.ClassDeclaration, javalang.tree.InterfaceDeclaration, javalang.tree.EnumDeclaration)):
-            current_class = node.name
-            if node.extends:
-                if isinstance(node.extends, list):
-                    for parent in node.extends:
-                        graph[current_class]['dependencies'].append(parent.name)
-                else:
-                    graph[current_class]['dependencies'].append(node.extends.name)
-            if node.implements:
-                for implement in node.implements:
-                    graph[current_class]['dependencies'].append(implement.name)
-        elif isinstance(node, javalang.tree.MethodDeclaration) and current_class:
-            current_method = node.name
-            return_type = node.return_type.name if node.return_type else 'void'
-            graph[current_class]['methods'].append({'method': current_method, 'return_type': return_type, 'parameters': [param.type.name for param in node.parameters]})
-            if node.body:
-                for path, sub_node in node:
-                    if isinstance(sub_node, javalang.tree.MethodInvocation):
-                        if sub_node.qualifier:
-                            method_call = f"{sub_node.qualifier}.{sub_node.member}"
-                        else:
-                            method_call = sub_node.member
-                        graph[current_class]['dependencies'].append(method_call)
-        elif isinstance(node, javalang.tree.FieldDeclaration) and current_class:
-            for declarator in node.declarators:
-                field_type = node.type.name
-                graph[current_class]['dependencies'].append(field_type)
-    
-    return graph
+    return tdg
 
-def save_graph_to_json(graph, output_file):
-    with open(output_file, 'w') as f:
-        json.dump(graph, f, indent=4)
+def save_tdg_to_json(tdg, output_file):
+    with open(output_file, 'w') as file:
+        json.dump(tdg.to_dict(), file, indent=4)
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python script.py <path_to_java_project>")
-        sys.exit(1)
+def main():
+    parser = argparse.ArgumentParser(description='Create a Type Dependency Graph from a Java project directory.')
+    parser.add_argument('directory', help='Path to the Java project directory')
+    parser.add_argument('output', help='Path to the output JSON file')
+    args = parser.parse_args()
 
-    java_project_directory = sys.argv[1]
-    output_json_file = "type_dependency_graph.json"
+    tdg = create_tdg_from_directory(args.directory)
+    save_tdg_to_json(tdg, args.output)
 
-    graph = create_type_dependency_graph(java_project_directory)
-    save_graph_to_json(graph, output_json_file)
+if __name__ == '__main__':
+    main()
 
-    print(f"Type dependency graph saved to {output_json_file}")
