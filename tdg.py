@@ -53,7 +53,10 @@ def parse_java_file(file_path, tdg):
                 tdg.add_dependency(method_name, return_type)
             tdg.add_dependency(current_class, method_name)
         elif isinstance(node, javalang.tree.MethodInvocation):
-            invoked_method = f'{node.qualifier}.{node.member}' if node.qualifier else f'{current_class}.{node.member}'
+            if node.qualifier:
+                invoked_method = f'{node.qualifier}.{node.member}'
+            else:
+                invoked_method = f'{current_class}.{node.member}'
             tdg.add_dependency(current_method, invoked_method)
         elif isinstance(node, javalang.tree.VariableDeclarator):
             var_name = node.name
@@ -65,7 +68,13 @@ def parse_java_file(file_path, tdg):
             parent_node = path[-1]
             if isinstance(parent_node, javalang.tree.FieldDeclaration) or isinstance(parent_node, javalang.tree.LocalVariableDeclaration):
                 var_type = get_type_name(parent_node.type)
-            tdg.add_dependency(var_name, var_type)
+            if isinstance(node.initializer, javalang.tree.MethodInvocation):
+                invoked_method = f'{current_class}.{node.initializer.member}'
+                tdg.add_dependency(var_name, invoked_method)
+                # Infer variable type from method return type if possible
+                tdg.add_dependency(invoked_method, var_type)
+            else:
+                tdg.add_dependency(var_name, var_type)
         elif isinstance(node, javalang.tree.FieldDeclaration):
             for declarator in node.declarators:
                 field_name = f'{current_class}.{declarator.name}'
@@ -98,4 +107,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
