@@ -33,6 +33,7 @@ def parse_java_file(file_path, tdg):
 
     current_class = None
     current_method = None
+    method_return_types = {}
 
     for path, node in tree:
         if isinstance(node, javalang.tree.ClassDeclaration):
@@ -45,12 +46,11 @@ def parse_java_file(file_path, tdg):
         elif isinstance(node, javalang.tree.MethodDeclaration):
             method_name = f'{current_class}.{node.name}'
             current_method = method_name
+            return_type = get_type_name(node.return_type) if node.return_type else 'void'
+            method_return_types[method_name] = return_type
             for param in node.parameters:
                 param_type = get_type_name(param.type)
                 tdg.add_dependency(method_name, param_type)
-            if node.return_type:
-                return_type = get_type_name(node.return_type)
-                tdg.add_dependency(method_name, return_type)
             tdg.add_dependency(current_class, method_name)
         elif isinstance(node, javalang.tree.MethodInvocation):
             if node.qualifier:
@@ -58,6 +58,10 @@ def parse_java_file(file_path, tdg):
             else:
                 invoked_method = f'{current_class}.{node.member}'
             tdg.add_dependency(current_method, invoked_method)
+            if invoked_method in method_return_types:
+                return_type = method_return_types[invoked_method]
+                if return_type != 'void':
+                    tdg.add_dependency(current_method, return_type)
         elif isinstance(node, javalang.tree.VariableDeclarator):
             var_name = node.name
             if current_method:
@@ -69,12 +73,16 @@ def parse_java_file(file_path, tdg):
             if isinstance(parent_node, javalang.tree.FieldDeclaration) or isinstance(parent_node, javalang.tree.LocalVariableDeclaration):
                 var_type = get_type_name(parent_node.type)
             if isinstance(node.initializer, javalang.tree.MethodInvocation):
-                invoked_method = f'{current_class}.{node.initializer.member}'
+                if node.initializer.qualifier:
+                    invoked_method = f'{node.initializer.qualifier}.{node.initializer.member}'
+                else:
+                    invoked_method = f'{current_class}.{node.initializer.member}'
                 tdg.add_dependency(var_name, invoked_method)
-                # Infer variable type from method return type if possible
-                tdg.add_dependency(invoked_method, var_type)
-            else:
-                tdg.add_dependency(var_name, var_type)
+                if invoked_method in method_return_types:
+                    var_type = method_return_types[invoked_method]
+            elif isinstance(node.initializer, javalang.tree.Literal):
+                var_type = 'String' if node.initializer.value.startswith('"') and node.initializer.value.endswith('"') else get_type_name(node.initializer)
+            tdg.add_dependency(var_name, var_type)
         elif isinstance(node, javalang.tree.FieldDeclaration):
             for declarator in node.declarators:
                 field_name = f'{current_class}.{declarator.name}'
@@ -107,3 +115,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
