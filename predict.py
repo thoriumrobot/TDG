@@ -66,12 +66,13 @@ def process_file(file_path, tdg):
                 var_id = f"{file_name}.{node.name}"
                 tdg.add_node(var_id, "variable", node.name)
             elif isinstance(node, javalang.tree.Literal) and node.value == "null":
-                null_id = f"{file_name}.null_{path.position.line}_{path.position.column}"
-                tdg.add_node(null_id, "literal", "null")
-                parent = path[-2] if len(path) > 1 else None
-                if parent:
-                    parent_id = f"{file_name}.{parent.name}"
-                    tdg.add_edge(parent_id, null_id, "contains")
+                if node.position:
+                    null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
+                    tdg.add_node(null_id, "literal", "null")
+                    parent = path[-2] if len(path) > 1 else None
+                    if parent:
+                        parent_id = f"{file_name}.{parent.name}"
+                        tdg.add_edge(parent_id, null_id, "contains")
     except javalang.parser.JavaSyntaxError as e:
         logging.error(f"Syntax error in file {file_path}: {e}")
     except Exception as e:

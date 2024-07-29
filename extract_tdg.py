@@ -51,12 +51,13 @@ def process_file(file_path, output_dir):
                         tdg.add_edge(class_id, field_id, "has_field")
                 for path, node in tree:
                     if isinstance(node, javalang.tree.Literal) and node.value == "null":
-                        null_id = f"{file_name}.null_{path.position.line}_{path.position.column}"
-                        tdg.add_node(null_id, "literal", "null")
-                        parent = path[-2] if len(path) > 1 else None
-                        if parent:
-                            parent_id = f"{file_name}.{parent.name}"
-                            tdg.add_edge(parent_id, null_id, "contains")
+                        if node.position:
+                            null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
+                            tdg.add_node(null_id, "literal", "null")
+                            parent = path[-2] if len(path) > 1 else None
+                            if parent:
+                                parent_id = f"{file_name}.{parent.name}"
+                                tdg.add_edge(parent_id, null_id, "contains")
                 
                 output_path = os.path.join(output_dir, f"{class_id}.json")
                 save_tdg_to_json(tdg, output_path)
