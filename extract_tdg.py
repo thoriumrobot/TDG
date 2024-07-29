@@ -22,6 +22,18 @@ class JavaTDG:
     def add_classname(self, classname):
         self.classnames.add(classname)
 
+def get_parent_id(file_name, parent):
+    if parent is None:
+        return None
+    if hasattr(parent, 'name'):
+        return f"{file_name}.{parent.name}"
+    if isinstance(parent, javalang.tree.MethodInvocation):
+        return f"{file_name}.{parent.member}"
+    if isinstance(parent, javalang.tree.Assignment):
+        if parent.position:
+            return f"{file_name}.assignment_{parent.position.line}_{parent.position.column}"
+    return None
+
 def process_file(file_path, output_dir):
     try:
         with open(file_path, 'r') as file:
@@ -55,16 +67,9 @@ def process_file(file_path, output_dir):
                             null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
                             tdg.add_node(null_id, "literal", "null")
                             parent = path[-2] if len(path) > 1 else None
-                            if parent:
-                                parent_id = None
-                                if hasattr(parent, 'name'):
-                                    parent_id = f"{file_name}.{parent.name}"
-                                elif isinstance(parent, javalang.tree.MethodInvocation):
-                                    parent_id = f"{file_name}.{parent.member}"
-                                elif isinstance(parent, javalang.tree.Assignment):
-                                    parent_id = f"{file_name}.assignment_{parent.position.line}_{parent.position.column}"
-                                if parent_id:
-                                    tdg.add_edge(parent_id, null_id, "contains")
+                            parent_id = get_parent_id(file_name, parent)
+                            if parent_id:
+                                tdg.add_edge(parent_id, null_id, "contains")
                 
                 output_path = os.path.join(output_dir, f"{class_id}.json")
                 save_tdg_to_json(tdg, output_path)
