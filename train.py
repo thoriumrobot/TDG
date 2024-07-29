@@ -170,8 +170,20 @@ def preprocess_data(tdg_data):
             labels.append(label)
     return np.array(features), np.array(labels)
 
+# Define mappings for string values
+type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4}
+name_mapping = defaultdict(lambda: len(name_mapping))
+
 def extract_features(node):
-    return [float(node['attr'].get('type', 0)), float(node['attr'].get('name', 0))]
+    node_type = node['attr'].get('type', '')
+    node_name = node['attr'].get('name', '')
+
+    type_id = type_mapping.get(node_type, len(type_mapping))
+    if node_name not in name_mapping:
+        name_mapping[node_name] = len(name_mapping)
+    name_id = name_mapping[node_name]
+
+    return [float(type_id), float(name_id)]
 
 def get_label(node):
     return float(node['attr'].get('nullable', 0))
