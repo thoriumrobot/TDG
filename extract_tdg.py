@@ -3,8 +3,6 @@ import sys
 import json
 import javalang
 import networkx as nx
-import numpy as np
-from tensorflow.keras.models import load_model
 import logging
 from collections import defaultdict
 
@@ -78,97 +76,26 @@ def process_directory(directory_path):
                 process_file(os.path.join(root, file), tdg)
     return tdg
 
-def extract_features(attr):
-    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4}
-    name_mapping = defaultdict(lambda: len(name_mapping))
-
-    node_type = attr.get('type', '')
-    node_name = attr.get('name', '')
-
-    type_id = type_mapping.get(node_type, len(type_mapping))
-    if node_name not in name_mapping:
-        name_mapping[node_name] = len(name_mapping)
-    name_id = name_mapping[node_name]
-
-    return [float(type_id), float(name_id)]
-
-def preprocess_tdg(tdg):
-    features = []
-    node_ids = []
-    for node in tdg.graph.nodes(data=True):
-        node_id, attr = node
-        if 'attr' in attr:
-            feature_vector = extract_features(attr['attr'])
-            features.append(feature_vector)
-            node_ids.append(node_id)
-        else:
-            logging.warning(f"Node {node_id} is missing 'attr' attribute")
-    return np.array(features), node_ids
-
-def annotate_file(file_path, annotations):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-    
-    for annotation in annotations:
-        node_id, line_num, col_num = annotation
-        if 0 <= line_num - 1 < len(lines):
-            lines[line_num - 1] = lines[line_num - 1][:col_num] + "@Nullable " + lines[line_num - 1][col_num:]
-        else:
-            logging.warning(f"Line number {line_num} is out of range in file {file_path}")
-    
-    with open(file_path, 'w') as file:
-        file.writelines(lines)
-
-def process_project(project_dir, model):
-    tdg = process_directory(project_dir)
-    features, node_ids = preprocess_tdg(tdg)
-
-    if features.size == 0:
-        logging.warning(f"No valid features extracted for project {project_dir}. Skipping annotation.")
-        return
-    
-    predictions = model.predict(features)
-    
-    annotations = []
-    for node_id, prediction in zip(node_ids, predictions):
-        if prediction > 0.5:  # Assuming a threshold of 0.5 for @Nullable annotation
-            node_info = node_id.split('.')
-            file_name = node_info[0]
-            try:
-                line_num = int(node_info[1])
-            except ValueError:
-                logging.warning(f"Invalid line number in node_id {node_id} for project {project_dir}. Skipping annotation.")
-                continue
-            col_num = 0
-
-            annotations.append((node_id, line_num, col_num))
-    
-    for file_name in set([ann[0].split('.')[0] for ann in annotations]):
-        file_path = os.path.join(project_dir, file_name)
-        file_annotations = [ann for ann in annotations if ann[0].split('.')[0] == file_name]
-        annotate_file(file_path, file_annotations)
-    
-    logging.info(f"Annotation complete for project {project_dir}")
-
-def main(project_dir, model_path, output_dir):
-    model = load_model(model_path)
-    
-    for subdir in os.listdir(project_dir):
-        subdir_path = os.path.join(project_dir, subdir)
-        if os.path.isdir(subdir_path):
-            output_subdir = os.path.join(output_dir, subdir)
-            os.makedirs(output_subdir, exist_ok=True)
-            process_project(subdir_path, model)
+def save_tdg_to_json(tdg, output_path):
+    data = nx.node_link_data(tdg.graph)
+    with open(output_path, 'w') as f:
+        json.dump(data, f)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: python predict.py <ProjectDir> <ModelPath> <OutputDir>")
+    if len(sys.argv) != 3:
+        print("Usage: python extract_tdg.py <ProjectDir> <OutputDir>")
         sys.exit(1)
     
     logging.basicConfig(level=logging.INFO)
-
     project_dir = sys.argv[1]
-    model_path = sys.argv[2]
-    output_dir = sys.argv[3]
+    output_dir = sys.argv[2]
+    
+    os.makedirs(output_dir, exist_ok=True)
 
-    main(project_dir, model_path, output_dir)
+    for subdir in os.listdir(project_dir):
+        subdir_path = os.path.join(project_dir, subdir)
+        if os.path.isdir(subdir_path):
+            tdg = process_directory(subdir_path)
+            output_path = os.path.join(output_dir, f"{subdir}.json")
+            save_tdg_to_json(tdg, output_path)
+            logging.info(f"Saved TDG to {output_path}")
