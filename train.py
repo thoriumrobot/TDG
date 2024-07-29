@@ -4,6 +4,11 @@ import json
 import javalang
 import networkx as nx
 from collections import defaultdict
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.models import load_model
 import logging
 
 class JavaTDG:
@@ -140,26 +145,81 @@ def process_directory(directory_path):
                 process_file(os.path.join(root, file), tdg)
     return tdg
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python generate_tdg.py <JavaProjectDirectory>")
+def save_tdg_to_json(tdg, output_dir, project_name):
+    os.makedirs(output_dir, exist_ok=True)
+    tdg_file_path = os.path.join(output_dir, f"{project_name}_tdg.json")
+    tdg.to_json(tdg_file_path)
+    logging.info(f"TDG saved to {tdg_file_path}")
+    return tdg_file_path
+
+def load_tdg_data(json_dir):
+    data = []
+    for file_name in os.listdir(json_dir):
+        if file_name.endswith('.json'):
+            with open(os.path.join(json_dir, file_name), 'r') as f:
+                data.append(json.load(f))
+    return data
+
+def preprocess_data(tdg_data):
+    features = []
+    labels = []
+    for tdg in tdg_data:
+        for node in tdg['nodes']:
+            feature_vector = extract_features(node)
+            label = get_label(node)
+            features.append(feature_vector)
+            labels.append(label)
+    return features, labels
+
+def extract_features(node):
+    # Enhanced feature extraction can be added here
+    return [node['attr'].get('type', 0), node['attr'].get('name', 0)]
+
+def get_label(node):
+    # Ensure the label extraction mechanism is accurate
+    return node['attr'].get('nullable', 0)
+
+def build_model(input_dim):
+    model = Sequential()
+    model.add(Dense(64, input_dim=input_dim, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(1, activation='sigmoid'))
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return model
+
+def train_model(model, X_train, y_train, X_val, y_val):
+    checkpoint = ModelCheckpoint('best_model.h5', monitor='val_accuracy', save_best_only=True, mode='max')
+    history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_data=(X_val, y_val), callbacks=[checkpoint])
+    return history
+
+def main(project_dirs, json_output_dir, model_output_path):
+    for project_dir in project_dirs:
+        project_name = os.path.basename(project_dir.rstrip('/'))
+        tdg = process_directory(project_dir)
+        save_tdg_to_json(tdg, json_output_dir, project_name)
+
+    tdg_data = load_tdg_data(json_output_dir)
+    features, labels = preprocess_data(tdg_data)
+    X_train, X_val, y_train, y_val = train_test_split(features, labels, test_size=0.2, random_state=42)
+    input_dim = len(features[0])
+    model = build_model(input_dim)
+    train_model(model, X_train, y_train, X_val, y_val)
+    best_model = load_model('best_model.h5')
+    best_model.save(model_output_path)
+    logging.info(f"Model training complete and saved as {model_output_path}")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: python train_typilus.py <JsonOutputDir> <ModelOutputPath> <ProjectDirs...>")
         sys.exit(1)
 
     logging.basicConfig(level=logging.INFO)
 
-    directory_path = sys.argv[1]
-    tdg = process_directory(directory_path)
+    json_output_dir = sys.argv[1]
+    model_output_path = sys.argv[2]
+    project_dirs = sys.argv[3:]
 
-    # Alias Analysis
-    alias_analysis(tdg, directory_path)
-
-    # Call Analysis
-    call_analysis(tdg, directory_path)
-
-    # Generate the final TDG
-    tdg.to_json("tdg.json")
-    logging.info("TDG saved to tdg.json")
-
-if __name__ == "__main__":
-    main()
+    main(project_dirs, json_output_dir, model_output_path)
 
