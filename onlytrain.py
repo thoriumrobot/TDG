@@ -109,13 +109,13 @@ def preprocess_data(tdg_data):
             label = get_label(node)
             features.append(feature_vector)
             labels.append(label)
-    return features, labels
+    return np.array(features), np.array(labels)
 
 def extract_features(node):
-    return [node['attr'].get('type', 0), node['attr'].get('name', 0)]
+    return [float(node['attr'].get('type', 0)), float(node['attr'].get('name', 0))]
 
 def get_label(node):
-    return node['attr'].get('nullable', 0)
+    return float(node['attr'].get('nullable', 0))
 
 def build_model(input_dim):
     model = Sequential([

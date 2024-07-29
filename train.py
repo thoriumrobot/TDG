@@ -168,13 +168,13 @@ def preprocess_data(tdg_data):
             label = get_label(node)
             features.append(feature_vector)
             labels.append(label)
-    return features, labels
+    return np.array(features), np.array(labels)
 
 def extract_features(node):
-    return [node['attr'].get('type', 0), node['attr'].get('name', 0)]
+    return [float(node['attr'].get('type', 0)), float(node['attr'].get('name', 0))]
 
 def get_label(node):
-    return node['attr'].get('nullable', 0)
+    return float(node['attr'].get('nullable', 0))
 
 def build_model(input_dim):
     model = Sequential([
@@ -195,6 +195,12 @@ def train_model(model, X_train, y_train, X_val, y_val):
     X_val = np.array(X_val)
     y_val = np.array(y_val)
     
+    # Print debug information
+    print(f"X_train type: {type(X_train)}, shape: {X_train.shape}")
+    print(f"y_train type: {type(y_train)}, shape: {y_train.shape}")
+    print(f"X_val type: {type(X_val)}, shape: {X_val.shape}")
+    print(f"y_val type: {type(y_val)}, shape: {y_val.shape}")
+
     checkpoint = ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max')
     history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_data=(X_val, y_val), callbacks=[checkpoint])
     return history
