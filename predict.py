@@ -107,8 +107,6 @@ def extract_features(attr):
     node_name = attr.get('name', '')
 
     type_id = type_mapping.get(node_type, len(type_mapping))
-    if node_name not in name_mapping:
-        name_mapping[node_name] = len(name_mapping)
     name_id = name_mapping[node_name]
 
     return [float(type_id), float(name_id)]

@@ -18,8 +18,6 @@ def extract_features(attr):
     node_name = attr.get('name', '')
 
     type_id = type_mapping.get(node_type, len(type_mapping))
-    if node_name not in name_mapping:
-        name_mapping[node_name] = len(name_mapping)
     name_id = name_mapping[node_name]
 
     return [float(type_id), float(name_id)]
@@ -28,14 +26,11 @@ def preprocess_tdg(tdg):
     features = []
     labels = []
     for node in tdg['nodes']:
-        if 'attr' in node:
-            attr = node['attr']
-            feature_vector = extract_features(attr)
-            label = float(attr.get('nullable', 0))
-            features.append(feature_vector)
-            labels.append(label)
-        else:
-            logging.warning(f"Node {node['id']} is missing 'attr' attribute")
+        attr = node.get('attr', {})
+        feature_vector = extract_features(attr)
+        label = float(attr.get('nullable', 0))
+        features.append(feature_vector)
+        labels.append(label)
     return np.array(features), np.array(labels)
 
 def build_model(input_dim):
@@ -73,8 +68,8 @@ def balance_dataset(features, labels):
     selected_indices = pos_indices + selected_neg_indices
     random.shuffle(selected_indices)
     
-    balanced_features = features[selected_indices]
-    balanced_labels = labels[selected_indices]
+    balanced_features = np.array([features[i] for i in selected_indices])
+    balanced_labels = np.array([labels[i] for i in selected_indices])
     
     return balanced_features, balanced_labels
 
