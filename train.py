@@ -10,6 +10,7 @@ from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.models import load_model
 import logging
+import traceback
 
 class JavaTDG:
     def __init__(self):
@@ -52,7 +53,6 @@ def alias_analysis(tdg, project_dir):
                     tree = javalang.parse.parse(content)
                     file_name = os.path.basename(file)
 
-                    # Process the AST nodes for alias analysis
                     for path, node in tree:
                         if isinstance(node, javalang.tree.VariableDeclarator):
                             var_name = node.name
@@ -62,16 +62,14 @@ def alias_analysis(tdg, project_dir):
                                 alias_id = f"{file_name}.{alias_name}"
                                 tdg.add_alias(alias_id, var_id)
                             elif isinstance(node.initializer, javalang.tree.Literal):
-                                # Skip literals
                                 pass
                             elif isinstance(node.initializer, javalang.tree.MethodInvocation):
-                                # Skip method invocations
                                 pass
                             else:
-                                # Handle other initializers if necessary
                                 pass
                 except Exception as e:
                     logging.error(f"Error processing file {file}: {e}")
+                    logging.error(traceback.format_exc())
     logging.info("[1st Pass: Alias Analysis] Finished...")
 
 def call_analysis(tdg, project_dir):
@@ -90,6 +88,7 @@ def call_analysis(tdg, project_dir):
                             tdg.callgraph[caller].append(callee)
                 except Exception as e:
                     logging.error(f"Error processing file {file}: {e}")
+                    logging.error(traceback.format_exc())
     logging.info(f"[2nd Pass: Call Analysis] Captured {sum(len(v) for v in tdg.callgraph.values())} call relationships.")
     logging.info("[2nd Pass: Call Analysis] Finished...")
 
@@ -100,7 +99,6 @@ def process_file(file_path, tdg):
         tree = javalang.parse.parse(content)
         file_name = os.path.basename(file_path)
 
-        # Process the AST nodes
         for path, node in tree:
             if isinstance(node, javalang.tree.ClassDeclaration):
                 class_id = f"{file_name}.{node.name}"
@@ -136,6 +134,7 @@ def process_file(file_path, tdg):
                 tdg.add_node(var_id, "variable", node.name)
     except Exception as e:
         logging.error(f"Error processing file {file_path}: {e}")
+        logging.error(traceback.format_exc())
 
 def process_directory(directory_path):
     tdg = JavaTDG()
@@ -145,9 +144,9 @@ def process_directory(directory_path):
                 process_file(os.path.join(root, file), tdg)
     return tdg
 
-def save_tdg_to_json(tdg, output_dir, project_name):
+def save_tdg_to_json(tdg, output_dir, class_name):
     os.makedirs(output_dir, exist_ok=True)
-    tdg_file_path = os.path.join(output_dir, f"{project_name}_tdg.json")
+    tdg_file_path = os.path.join(output_dir, f"{class_name}_tdg.json")
     tdg.to_json(tdg_file_path)
     logging.info(f"TDG saved to {tdg_file_path}")
     return tdg_file_path
@@ -172,11 +171,9 @@ def preprocess_data(tdg_data):
     return features, labels
 
 def extract_features(node):
-    # Enhanced feature extraction can be added here
     return [node['attr'].get('type', 0), node['attr'].get('name', 0)]
 
 def get_label(node):
-    # Ensure the label extraction mechanism is accurate
     return node['attr'].get('nullable', 0)
 
 def build_model(input_dim):
@@ -194,11 +191,16 @@ def train_model(model, X_train, y_train, X_val, y_val):
     history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_data=(X_val, y_val), callbacks=[checkpoint])
     return history
 
-def main(project_dirs, json_output_dir, model_output_path):
-    for project_dir in project_dirs:
-        project_name = os.path.basename(project_dir.rstrip('/'))
-        tdg = process_directory(project_dir)
-        save_tdg_to_json(tdg, json_output_dir, project_name)
+def main(class_dirs, json_output_dir, model_output_path):
+    for class_dir in class_dirs:
+        for root, _, files in os.walk(class_dir):
+            for file in files:
+                if file.endswith('.java'):
+                    class_name = os.path.splitext(file)[0]
+                    file_path = os.path.join(root, file)
+                    tdg = JavaTDG()
+                    process_file(file_path, tdg)
+                    save_tdg_to_json(tdg, json_output_dir, class_name)
 
     tdg_data = load_tdg_data(json_output_dir)
     features, labels = preprocess_data(tdg_data)
@@ -212,14 +214,14 @@ def main(project_dirs, json_output_dir, model_output_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python train_typilus.py <JsonOutputDir> <ModelOutputPath> <ProjectDirs...>")
+        print("Usage: python train.py <JsonOutputDir> <ModelOutputPath> <ClassDirs...>")
         sys.exit(1)
 
     logging.basicConfig(level=logging.INFO)
 
     json_output_dir = sys.argv[1]
     model_output_path = sys.argv[2]
-    project_dirs = sys.argv[3:]
+    class_dirs = sys.argv[3:]
 
-    main(project_dirs, json_output_dir, model_output_path)
+    main(class_dirs, json_output_dir, model_output_path)
 

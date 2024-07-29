@@ -124,7 +124,7 @@ def main(project_dir, model_path, output_dir):
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python annotate_nullable.py <ProjectDir> <ModelPath> <OutputDir>")
+        print("Usage: python predict.py <ProjectDir> <ModelPath> <OutputDir>")
         sys.exit(1)
     
     logging.basicConfig(level=logging.INFO)
