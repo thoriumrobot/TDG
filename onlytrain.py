@@ -10,6 +10,7 @@ from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.callbacks import ModelCheckpoint
 import logging
 import traceback
+import numpy as np
 
 class JavaTDG:
     def __init__(self):

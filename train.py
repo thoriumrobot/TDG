@@ -10,6 +10,7 @@ from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.callbacks import ModelCheckpoint
 import logging
 import traceback
+import numpy as np
 
 class JavaTDG:
     def __init__(self):
@@ -188,6 +189,12 @@ def build_model(input_dim):
     return model
 
 def train_model(model, X_train, y_train, X_val, y_val):
+    # Ensure the inputs are numpy arrays
+    X_train = np.array(X_train)
+    y_train = np.array(y_train)
+    X_val = np.array(X_val)
+    y_val = np.array(y_val)
+    
     checkpoint = ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max')
     history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_data=(X_val, y_val), callbacks=[checkpoint])
     return history
