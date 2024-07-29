@@ -6,6 +6,7 @@ import networkx as nx
 import numpy as np
 from tensorflow.keras.models import load_model
 import logging
+from collections import defaultdict
 
 class JavaTDG:
     def __init__(self):
@@ -75,7 +76,18 @@ def process_directory(directory_path):
     return tdg
 
 def extract_features(node):
-    return [node['attr'].get('type', 0), node['attr'].get('name', 0)]
+    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4}
+    name_mapping = defaultdict(lambda: len(name_mapping))
+
+    node_type = node['attr'].get('type', '')
+    node_name = node['attr'].get('name', '')
+
+    type_id = type_mapping.get(node_type, len(type_mapping))
+    if node_name not in name_mapping:
+        name_mapping[node_name] = len(name_mapping)
+    name_id = name_mapping[node_name]
+
+    return [float(type_id), float(name_id)]
 
 def preprocess_tdg(tdg):
     features = []
