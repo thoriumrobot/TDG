@@ -71,8 +71,15 @@ def process_file(file_path, tdg):
                     tdg.add_node(null_id, "literal", "null")
                     parent = path[-2] if len(path) > 1 else None
                     if parent:
-                        parent_id = f"{file_name}.{parent.name}"
-                        tdg.add_edge(parent_id, null_id, "contains")
+                        parent_id = None
+                        if hasattr(parent, 'name'):
+                            parent_id = f"{file_name}.{parent.name}"
+                        elif isinstance(parent, javalang.tree.MethodInvocation):
+                            parent_id = f"{file_name}.{parent.member}"
+                        elif isinstance(parent, javalang.tree.Assignment):
+                            parent_id = f"{file_name}.assignment_{parent.position.line}_{parent.position.column}"
+                        if parent_id:
+                            tdg.add_edge(parent_id, null_id, "contains")
     except javalang.parser.JavaSyntaxError as e:
         logging.error(f"Syntax error in file {file_path}: {e}")
     except Exception as e:
