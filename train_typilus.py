@@ -8,9 +8,10 @@ from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.callbacks import ModelCheckpoint
 import logging
 from collections import defaultdict
+import random
 
 def extract_features(attr):
-    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4}
+    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
 
     node_type = attr.get('type', '')
@@ -27,11 +28,14 @@ def preprocess_tdg(tdg):
     features = []
     labels = []
     for node in tdg['nodes']:
-        attr = node['attr']
-        feature_vector = extract_features(attr)
-        label = float(attr.get('nullable', 0))
-        features.append(feature_vector)
-        labels.append(label)
+        if 'attr' in node:
+            attr = node['attr']
+            feature_vector = extract_features(attr)
+            label = float(attr.get('nullable', 0))
+            features.append(feature_vector)
+            labels.append(label)
+        else:
+            logging.warning(f"Node {node['id']} is missing 'attr' attribute")
     return np.array(features), np.array(labels)
 
 def build_model(input_dim):
@@ -59,16 +63,35 @@ def load_tdg_data(json_dir):
                 data.append(json.load(f))
     return data
 
+def balance_dataset(features, labels):
+    pos_indices = [i for i, label in enumerate(labels) if label == 1]
+    neg_indices = [i for i, label in enumerate(labels) if label == 0]
+    
+    random.shuffle(neg_indices)
+    selected_neg_indices = neg_indices[:len(pos_indices)]
+    
+    selected_indices = pos_indices + selected_neg_indices
+    random.shuffle(selected_indices)
+    
+    balanced_features = features[selected_indices]
+    balanced_labels = labels[selected_indices]
+    
+    return balanced_features, balanced_labels
+
 def main(json_output_dir, model_output_path):
     tdg_data = load_tdg_data(json_output_dir)
     features, labels = [], []
     for tdg in tdg_data:
         f, l = preprocess_tdg(tdg)
-        features.append(f)
-        labels.append(l)
+        if len(f) > 0:  # Only include if features were extracted
+            features.append(f)
+            labels.append(l)
 
     features = np.concatenate(features)
     labels = np.concatenate(labels)
+    
+    features, labels = balance_dataset(features, labels)
+    
     X_train, X_val, y_train, y_val = train_test_split(features, labels, test_size=0.2, random_state=42)
     input_dim = len(features[0])
     model = build_model(input_dim)

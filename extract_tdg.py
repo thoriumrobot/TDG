@@ -5,6 +5,7 @@ import javalang
 import networkx as nx
 import logging
 from collections import defaultdict
+import traceback
 
 class JavaTDG:
     def __init__(self):
@@ -21,7 +22,7 @@ class JavaTDG:
     def add_classname(self, classname):
         self.classnames.add(classname)
 
-def process_file(file_path, tdg):
+def process_file(file_path, output_dir):
     try:
         with open(file_path, 'r') as file:
             content = file.read()
@@ -31,6 +32,7 @@ def process_file(file_path, tdg):
 
         for path, node in tree:
             if isinstance(node, javalang.tree.ClassDeclaration):
+                tdg = JavaTDG()
                 class_id = f"{file_name}.{node.name}"
                 tdg.add_node(class_id, "class", node.name)
                 tdg.add_classname(node.name)
@@ -47,34 +49,22 @@ def process_file(file_path, tdg):
                         field_id = f"{class_id}.{decl.name}"
                         tdg.add_node(field_id, "field", decl.name)
                         tdg.add_edge(class_id, field_id, "has_field")
-            elif isinstance(node, javalang.tree.MethodDeclaration):
-                method_id = f"{file_name}.{node.name}()"
-                tdg.add_node(method_id, "method", node.name)
-                for param in node.parameters:
-                    param_id = f"{method_id}.{param.name}"
-                    tdg.add_node(param_id, "parameter", param.name)
-                    tdg.add_edge(method_id, param_id, "has_parameter")
-            elif isinstance(node, javalang.tree.FieldDeclaration):
-                for decl in node.declarators:
-                    field_id = f"{file_name}.{decl.name}"
-                    tdg.add_node(field_id, "field", decl.name)
-                    tdg.add_edge(file_name, field_id, "has_field")
-            elif isinstance(node, javalang.tree.VariableDeclarator):
-                var_id = f"{file_name}.{node.name}"
-                tdg.add_node(var_id, "variable", node.name)
+                for path, node in tree:
+                    if isinstance(node, javalang.tree.Literal) and node.value == "null":
+                        null_id = f"{file_name}.null_{path.position.line}_{path.position.column}"
+                        tdg.add_node(null_id, "literal", "null")
+                        parent = path[-2] if len(path) > 1 else None
+                        if parent:
+                            parent_id = f"{file_name}.{parent.name}"
+                            tdg.add_edge(parent_id, null_id, "contains")
+                
+                output_path = os.path.join(output_dir, f"{class_id}.json")
+                save_tdg_to_json(tdg, output_path)
     except javalang.parser.JavaSyntaxError as e:
         logging.error(f"Syntax error in file {file_path}: {e}")
     except Exception as e:
         logging.error(f"Error processing file {file_path}: {e}")
         logging.error(traceback.format_exc())
-
-def process_directory(directory_path):
-    tdg = JavaTDG()
-    for root, _, files in os.walk(directory_path):
-        for file in files:
-            if file.endswith('.java'):
-                process_file(os.path.join(root, file), tdg)
-    return tdg
 
 def save_tdg_to_json(tdg, output_path):
     data = nx.node_link_data(tdg.graph)
@@ -92,10 +82,7 @@ if __name__ == "__main__":
     
     os.makedirs(output_dir, exist_ok=True)
 
-    for subdir in os.listdir(project_dir):
-        subdir_path = os.path.join(project_dir, subdir)
-        if os.path.isdir(subdir_path):
-            tdg = process_directory(subdir_path)
-            output_path = os.path.join(output_dir, f"{subdir}.json")
-            save_tdg_to_json(tdg, output_path)
-            logging.info(f"Saved TDG to {output_path}")
+    for root, _, files in os.walk(project_dir):
+        for file in files:
+            if file.endswith('.java'):
+                process_file(os.path.join(root, file), output_dir)

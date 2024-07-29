@@ -7,6 +7,7 @@ import numpy as np
 from tensorflow.keras.models import load_model
 import logging
 from collections import defaultdict
+import traceback
 
 class JavaTDG:
     def __init__(self):
@@ -64,6 +65,13 @@ def process_file(file_path, tdg):
             elif isinstance(node, javalang.tree.VariableDeclarator):
                 var_id = f"{file_name}.{node.name}"
                 tdg.add_node(var_id, "variable", node.name)
+            elif isinstance(node, javalang.tree.Literal) and node.value == "null":
+                null_id = f"{file_name}.null_{path.position.line}_{path.position.column}"
+                tdg.add_node(null_id, "literal", "null")
+                parent = path[-2] if len(path) > 1 else None
+                if parent:
+                    parent_id = f"{file_name}.{parent.name}"
+                    tdg.add_edge(parent_id, null_id, "contains")
     except javalang.parser.JavaSyntaxError as e:
         logging.error(f"Syntax error in file {file_path}: {e}")
     except Exception as e:
@@ -79,7 +87,7 @@ def process_directory(directory_path):
     return tdg
 
 def extract_features(attr):
-    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4}
+    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
 
     node_type = attr.get('type', '')
