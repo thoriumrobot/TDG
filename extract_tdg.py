@@ -42,9 +42,9 @@ def process_file(file_path, output_dir):
         file_name = os.path.basename(file_path)
         logging.info(f"Processing file {file_path}")
 
+        tdg = JavaTDG()
         for path, node in tree:
             if isinstance(node, javalang.tree.ClassDeclaration):
-                tdg = JavaTDG()
                 class_id = f"{file_name}.{node.name}"
                 tdg.add_node(class_id, "class", node.name)
                 tdg.add_classname(node.name)
@@ -61,18 +61,17 @@ def process_file(file_path, output_dir):
                         field_id = f"{class_id}.{decl.name}"
                         tdg.add_node(field_id, "field", decl.name)
                         tdg.add_edge(class_id, field_id, "has_field")
-                for path, node in tree:
-                    if isinstance(node, javalang.tree.Literal) and node.value == "null":
-                        if node.position:
-                            null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
-                            tdg.add_node(null_id, "literal", "null")
-                            parent = path[-2] if len(path) > 1 else None
-                            parent_id = get_parent_id(file_name, parent)
-                            if parent_id:
-                                tdg.add_edge(parent_id, null_id, "contains")
-                
-                output_path = os.path.join(output_dir, f"{class_id}.json")
-                save_tdg_to_json(tdg, output_path)
+            if isinstance(node, javalang.tree.Literal) and node.value == "null":
+                if node.position:
+                    null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
+                    tdg.add_node(null_id, "literal", "null")
+                    parent = path[-2] if len(path) > 1 else None
+                    parent_id = get_parent_id(file_name, parent)
+                    if parent_id:
+                        tdg.add_edge(parent_id, null_id, "contains")
+
+        output_path = os.path.join(output_dir, f"{class_id}.json")
+        save_tdg_to_json(tdg, output_path)
     except javalang.parser.JavaSyntaxError as e:
         logging.error(f"Syntax error in file {file_path}: {e}")
     except Exception as e:
