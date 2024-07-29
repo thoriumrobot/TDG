@@ -133,7 +133,7 @@ def train_model(model, X_train, y_train, X_val, y_val):
     history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_data=(X_val, y_val), callbacks=[checkpoint])
     return history
 
-def main(class_dirs, json_output_dir, model_output_path):
+def main(json_output_dir, model_output_path):
     tdg_data = load_tdg_data(json_output_dir)
     features, labels = preprocess_data(tdg_data)
     X_train, X_val, y_train, y_val = train_test_split(features, labels, test_size=0.2, random_state=42)
@@ -146,14 +146,13 @@ def main(class_dirs, json_output_dir, model_output_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python onlytrain.py <JsonOutputDir> <ModelOutputPath> <ClassDirs...>")
+        print("Usage: python onlytrain.py <JsonOutputDir> <ModelOutputPath>")
         sys.exit(1)
 
     logging.basicConfig(level=logging.INFO)
 
     json_output_dir = sys.argv[1]
     model_output_path = sys.argv[2]
-    class_dirs = sys.argv[3:]
 
-    main(class_dirs, json_output_dir, model_output_path)
+    main(json_output_dir, model_output_path)
 
