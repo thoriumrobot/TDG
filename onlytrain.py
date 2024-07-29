@@ -91,65 +91,6 @@ def call_analysis(tdg, project_dir):
     logging.info(f"[2nd Pass: Call Analysis] Captured {sum(len(v) for v in tdg.callgraph.values())} call relationships.")
     logging.info("[2nd Pass: Call Analysis] Finished...")
 
-def process_file(file_path, tdg):
-    try:
-        with open(file_path, 'r') as file:
-            content = file.read()
-        tree = javalang.parse.parse(content)
-        file_name = os.path.basename(file_path)
-
-        for path, node in tree:
-            if isinstance(node, javalang.tree.ClassDeclaration):
-                class_id = f"{file_name}.{node.name}"
-                tdg.add_node(class_id, "class", node.name)
-                tdg.add_classname(node.name)
-                for method in node.methods:
-                    method_id = f"{class_id}.{method.name}()"
-                    tdg.add_node(method_id, "method", method.name)
-                    tdg.add_edge(class_id, method_id, "contains")
-                    for param in method.parameters:
-                        param_id = f"{method_id}.{param.name}"
-                        tdg.add_node(param_id, "parameter", param.name)
-                        tdg.add_edge(method_id, param_id, "has_parameter")
-                for field in node.fields:
-                    for decl in field.declarators:
-                        field_id = f"{class_id}.{decl.name}"
-                        tdg.add_node(field_id, "field", decl.name)
-                        tdg.add_edge(class_id, field_id, "has_field")
-            elif isinstance(node, javalang.tree.MethodDeclaration):
-                method_id = f"{file_name}.{node.name}()"
-                tdg.add_node(method_id, "method", node.name)
-                for param in node.parameters:
-                    param_id = f"{method_id}.{param.name}"
-                    tdg.add_node(param_id, "parameter", param.name)
-                    tdg.add_edge(method_id, param_id, "has_parameter")
-            elif isinstance(node, javalang.tree.FieldDeclaration):
-                for decl in node.declarators:
-                    field_id = f"{file_name}.{decl.name}"
-                    tdg.add_node(field_id, "field", decl.name)
-                    tdg.add_edge(file_name, field_id, "has_field")
-            elif isinstance(node, javalang.tree.VariableDeclarator):
-                var_id = f"{file_name}.{node.name}"
-                tdg.add_node(var_id, "variable", node.name)
-    except Exception as e:
-        logging.error(f"Error processing file {file_path}: {e}")
-        logging.error(traceback.format_exc())
-
-def process_directory(directory_path):
-    tdg = JavaTDG()
-    for root, _, files in os.walk(directory_path):
-        for file in files:
-            if file.endswith('.java'):
-                process_file(os.path.join(root, file), tdg)
-    return tdg
-
-def save_tdg_to_json(tdg, output_dir, class_name):
-    os.makedirs(output_dir, exist_ok=True)
-    tdg_file_path = os.path.join(output_dir, f"{class_name}_tdg.json")
-    tdg.to_json(tdg_file_path)
-    logging.info(f"TDG saved to {tdg_file_path}")
-    return tdg_file_path
-
 def load_tdg_data(json_dir):
     data = []
     for file_name in os.listdir(json_dir):
@@ -193,16 +134,6 @@ def train_model(model, X_train, y_train, X_val, y_val):
     return history
 
 def main(class_dirs, json_output_dir, model_output_path):
-    for class_dir in class_dirs:
-        for root, _, files in os.walk(class_dir):
-            for file in files:
-                if file.endswith('.java'):
-                    class_name = os.path.splitext(file)[0]
-                    file_path = os.path.join(root, file)
-                    tdg = JavaTDG()
-                    process_file(file_path, tdg)
-                    save_tdg_to_json(tdg, json_output_dir, class_name)
-
     tdg_data = load_tdg_data(json_output_dir)
     features, labels = preprocess_data(tdg_data)
     X_train, X_val, y_train, y_val = train_test_split(features, labels, test_size=0.2, random_state=42)
@@ -215,7 +146,7 @@ def main(class_dirs, json_output_dir, model_output_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python train.py <JsonOutputDir> <ModelOutputPath> <ClassDirs...>")
+        print("Usage: python onlytrain.py <JsonOutputDir> <ModelOutputPath> <ClassDirs...>")
         sys.exit(1)
 
     logging.basicConfig(level=logging.INFO)
