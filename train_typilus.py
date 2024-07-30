@@ -31,6 +31,7 @@ def preprocess_tdg(tdg):
         label = float(attr.get('nullable', 0))
         features.append(feature_vector)
         labels.append(label)
+    logging.info(f"Extracted {len(features)} features and {len(labels)} labels from TDG")
     return np.array(features), np.array(labels)
 
 def build_model(input_dim):
@@ -56,6 +57,7 @@ def load_tdg_data(json_dir):
         if file_name.endswith('.json'):
             with open(os.path.join(json_dir, file_name), 'r') as f:
                 data.append(json.load(f))
+    logging.info(f"Loaded {len(data)} TDG files")
     return data
 
 def balance_dataset(features, labels):
@@ -71,6 +73,7 @@ def balance_dataset(features, labels):
     balanced_features = np.array([features[i] for i in selected_indices])
     balanced_labels = np.array([labels[i] for i in selected_indices])
     
+    logging.info(f"Balanced dataset to {len(balanced_features)} features and {len(balanced_labels)} labels")
     return balanced_features, balanced_labels
 
 def main(json_output_dir, model_output_path):
@@ -81,6 +84,10 @@ def main(json_output_dir, model_output_path):
         if len(f) > 0:  # Only include if features were extracted
             features.append(f)
             labels.append(l)
+
+    if len(features) == 0 or len(labels) == 0:
+        logging.error("No valid features or labels found. Exiting.")
+        return
 
     features = np.concatenate(features)
     labels = np.concatenate(labels)

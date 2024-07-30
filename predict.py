@@ -122,6 +122,7 @@ def preprocess_tdg(tdg):
             node_ids.append(node_id)
         else:
             logging.warning(f"Node {node_id} is missing 'attr' attribute")
+    logging.info(f"Extracted {len(features)} features from TDG")
     return np.array(features), node_ids
 
 def annotate_file(file_path, annotations):
