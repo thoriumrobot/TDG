@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "SingleSelectSetting", "nullable": false}, "id": "src7206.java.SingleSelectSetting"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src7206.java.null_65_34"}], "links": []}

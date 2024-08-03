@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ExternalConfiguration", "nullable": false}, "id": "src8842.java.ExternalConfiguration"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src8842.java.null_87_23"}], "links": []}

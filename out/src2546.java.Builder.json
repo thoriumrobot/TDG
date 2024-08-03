@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Builder", "nullable": false}, "id": "src2546.java.Builder"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2546.java.null_84_31"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2546.java.null_94_33"}], "links": []}

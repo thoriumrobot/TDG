@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "GetUserFollowerListEvent", "nullable": false}, "id": "src4264.java.GetUserFollowerListEvent"}], "links": []}

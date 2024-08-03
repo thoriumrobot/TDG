@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Property", "nullable": false}, "id": "src5917.java.Property"}, {"attr": {"type": "field", "name": "name", "nullable": true}, "id": "src5917.java.Property.name"}], "links": [{"type": "has_field", "source": "src5917.java.Property", "target": "src5917.java.Property.name"}]}

@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ConcurrencyFailureException", "nullable": false}, "id": "src1599.java.ConcurrencyFailureException"}], "links": []}

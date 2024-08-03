@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Passages", "nullable": false}, "id": "src2503.java.Passages"}, {"attr": {"type": "field", "name": "passages", "nullable": true}, "id": "src2503.java.Passages.passages"}], "links": [{"type": "has_field", "source": "src2503.java.Passages", "target": "src2503.java.Passages.passages"}]}

@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ValueState", "nullable": false}, "id": "src77.java.ValueState"}, {"attr": {"type": "method", "name": "value", "nullable": true}, "id": "src77.java.ValueState.value()"}], "links": [{"type": "contains", "source": "src77.java.ValueState", "target": "src77.java.ValueState.value()"}]}

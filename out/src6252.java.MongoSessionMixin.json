@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "MongoSessionMixin", "nullable": false}, "id": "src6252.java.MongoSessionMixin"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src6252.java.null_146_11"}], "links": []}

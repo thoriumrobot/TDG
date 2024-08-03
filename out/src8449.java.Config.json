@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Config", "nullable": false}, "id": "src8449.java.Config"}, {"attr": {"type": "method", "name": "testClass", "nullable": false}, "id": "src8449.java.Config.testClass()"}], "links": [{"type": "contains", "source": "src8449.java.Config", "target": "src8449.java.Config.testClass()"}]}

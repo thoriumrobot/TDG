@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "BserEofException", "nullable": false}, "id": "src6625.java.BserEofException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src6625.java.null_321_16"}], "links": []}

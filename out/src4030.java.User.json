@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "User", "nullable": false}, "id": "src4030.java.User"}, {"attr": {"type": "method", "name": "getName", "nullable": false}, "id": "src4030.java.User.getName()"}], "links": [{"type": "contains", "source": "src4030.java.User", "target": "src4030.java.User.getName()"}]}

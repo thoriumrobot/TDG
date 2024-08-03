@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "RedundantClauseError", "nullable": false}, "id": "src2249.java.RedundantClauseError"}], "links": []}

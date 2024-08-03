@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Person", "nullable": false}, "id": "src7547.java.Person"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src7547.java.null_94_33"}, {"id": "src7547.java.$"}], "links": [{"type": "contains", "source": "src7547.java.$", "target": "src7547.java.null_94_33"}]}

@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "NodeCalls", "nullable": false}, "id": "src363.java.NodeCalls"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src363.java.null_128_33"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src363.java.null_148_27"}], "links": []}

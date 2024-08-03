@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "JsonInput", "nullable": false}, "id": "src7.java.JsonInput"}, {"attr": {"type": "field", "name": "value", "nullable": false}, "id": "src7.java.JsonInput.value"}], "links": [{"type": "has_field", "source": "src7.java.JsonInput", "target": "src7.java.JsonInput.value"}]}

@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "PostgresConnectionException", "nullable": false}, "id": "src1770.java.PostgresConnectionException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src1770.java.null_259_30"}], "links": []}

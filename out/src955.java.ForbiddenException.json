@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ForbiddenException", "nullable": false}, "id": "src955.java.ForbiddenException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src955.java.null_26_10"}], "links": []}

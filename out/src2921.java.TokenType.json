@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "TokenType", "nullable": false}, "id": "src2921.java.TokenType"}, {"attr": {"type": "field", "name": "POP", "nullable": false}, "id": "src2921.java.TokenType.POP"}], "links": [{"type": "has_field", "source": "src2921.java.TokenType", "target": "src2921.java.TokenType.POP"}]}

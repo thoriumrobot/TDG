@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "NonNullValidationException", "nullable": false}, "id": "src529.java.NonNullValidationException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src529.java.null_279_41"}], "links": []}

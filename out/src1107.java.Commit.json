@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Commit", "nullable": false}, "id": "src1107.java.Commit"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src1107.java.null_329_20"}], "links": []}

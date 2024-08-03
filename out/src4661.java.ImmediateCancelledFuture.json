@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ImmediateCancelledFuture", "nullable": false}, "id": "src4661.java.ImmediateCancelledFuture"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src4661.java.null_80_47"}], "links": []}

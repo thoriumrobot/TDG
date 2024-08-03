@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "StartTypeConverter", "nullable": false}, "id": "src7208.java.StartTypeConverter"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src7208.java.null_158_34"}], "links": []}

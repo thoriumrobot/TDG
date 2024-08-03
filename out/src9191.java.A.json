@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "A", "nullable": false}, "id": "src9191.java.A"}, {"attr": {"type": "method", "name": "f", "nullable": true}, "id": "src9191.java.A.f()"}], "links": [{"type": "contains", "source": "src9191.java.A", "target": "src9191.java.A.f()"}]}

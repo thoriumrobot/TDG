@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "SubBird", "nullable": false}, "id": "src382.java.SubBird"}, {"attr": {"type": "field", "name": "species", "nullable": true}, "id": "src382.java.SubBird.species"}], "links": [{"type": "has_field", "source": "src382.java.SubBird", "target": "src382.java.SubBird.species"}]}

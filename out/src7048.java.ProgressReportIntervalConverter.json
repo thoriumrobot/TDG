@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ProgressReportIntervalConverter", "nullable": false}, "id": "src7048.java.ProgressReportIntervalConverter"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src7048.java.null_310_29"}], "links": []}

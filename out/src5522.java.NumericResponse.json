@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "NumericResponse", "nullable": false}, "id": "src5522.java.NumericResponse"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src5522.java.null_372_13"}], "links": []}

@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "InstantNodes", "nullable": false}, "id": "src2393.java.InstantNodes"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2393.java.null_76_49"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2393.java.null_86_49"}], "links": []}

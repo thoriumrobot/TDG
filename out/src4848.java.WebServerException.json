@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "WebServerException", "nullable": false}, "id": "src4848.java.WebServerException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src4848.java.null_87_19"}], "links": []}

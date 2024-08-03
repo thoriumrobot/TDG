@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "G", "nullable": false}, "id": "src489.java.G"}, {"attr": {"type": "method", "name": "bar", "nullable": false}, "id": "src489.java.G.bar()"}], "links": [{"type": "contains", "source": "src489.java.G", "target": "src489.java.G.bar()"}]}

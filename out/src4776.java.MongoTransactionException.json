@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "MongoTransactionException", "nullable": false}, "id": "src4776.java.MongoTransactionException"}], "links": []}

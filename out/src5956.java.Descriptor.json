@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Descriptor", "nullable": false}, "id": "src5956.java.Descriptor"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src5956.java.null_48_67"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src5956.java.null_54_16"}], "links": []}

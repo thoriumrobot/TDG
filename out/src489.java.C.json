@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "C", "nullable": false}, "id": "src489.java.C"}, {"attr": {"type": "field", "name": "c", "nullable": true}, "id": "src489.java.C.c"}], "links": [{"type": "has_field", "source": "src489.java.C", "target": "src489.java.C.c"}]}

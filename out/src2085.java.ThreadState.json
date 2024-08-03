@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ThreadState", "nullable": false}, "id": "src2085.java.ThreadState"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2085.java.null_55_33"}], "links": []}

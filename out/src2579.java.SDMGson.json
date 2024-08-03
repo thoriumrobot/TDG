@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "SDMGson", "nullable": false}, "id": "src2579.java.SDMGson"}, {"attr": {"type": "field", "name": "GSON", "nullable": false}, "id": "src2579.java.SDMGson.GSON"}], "links": [{"type": "has_field", "source": "src2579.java.SDMGson", "target": "src2579.java.SDMGson.GSON"}]}

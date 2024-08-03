@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "SendMessageFunction", "nullable": false}, "id": "src4218.java.SendMessageFunction"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src4218.java.null_30_21"}], "links": []}

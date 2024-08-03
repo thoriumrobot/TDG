@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Tokens", "nullable": false}, "id": "src5920.java.Tokens"}, {"attr": {"type": "field", "name": "cookies", "nullable": true}, "id": "src5920.java.Tokens.cookies"}], "links": [{"type": "has_field", "source": "src5920.java.Tokens", "target": "src5920.java.Tokens.cookies"}]}

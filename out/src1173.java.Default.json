@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Default", "nullable": false}, "id": "src1173.java.Default"}, {"attr": {"type": "method", "name": "self", "nullable": false}, "id": "src1173.java.Default.self()"}], "links": [{"type": "contains", "source": "src1173.java.Default", "target": "src1173.java.Default.self()"}]}
