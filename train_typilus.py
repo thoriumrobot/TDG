@@ -16,11 +16,12 @@ def extract_features(attr):
 
     node_type = attr.get('type', '')
     node_name = attr.get('name', '')
+    nullable = float(attr.get('nullable', 0))
 
     type_id = type_mapping.get(node_type, len(type_mapping))
     name_id = name_mapping[node_name]
 
-    return [float(type_id), float(name_id)]
+    return [float(type_id), float(name_id), nullable]
 
 def preprocess_tdg(tdg):
     features = []
@@ -37,6 +38,8 @@ def preprocess_tdg(tdg):
 def build_model(input_dim):
     model = Sequential([
         Input(shape=(input_dim,)),
+        Dense(128, activation='relu'),
+        Dropout(0.5),
         Dense(64, activation='relu'),
         Dropout(0.5),
         Dense(32, activation='relu'),

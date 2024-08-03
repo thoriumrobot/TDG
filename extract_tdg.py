@@ -12,8 +12,8 @@ class JavaTDG:
         self.graph = nx.DiGraph()
         self.classnames = set()
 
-    def add_node(self, node_id, node_type, name):
-        self.graph.add_node(node_id, attr={'type': node_type, 'name': name})
+    def add_node(self, node_id, node_type, name, nullable=False):
+        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable})
         logging.debug(f"Added node {node_id} with attributes {self.graph.nodes[node_id]['attr']}")
 
     def add_edge(self, from_node, to_node, edge_type):
@@ -34,6 +34,9 @@ def get_parent_id(file_name, parent):
             return f"{file_name}.assignment_{parent.position.line}_{parent.position.column}"
     return None
 
+def has_nullable_annotation(annotations):
+    return any(annotation.name == 'Nullable' for annotation in annotations)
+
 def process_file(file_path, output_dir):
     try:
         with open(file_path, 'r') as file:
@@ -50,16 +53,19 @@ def process_file(file_path, output_dir):
                 tdg.add_classname(node.name)
                 for method in node.methods:
                     method_id = f"{class_id}.{method.name}()"
-                    tdg.add_node(method_id, "method", method.name)
+                    nullable = has_nullable_annotation(method.annotations)
+                    tdg.add_node(method_id, "method", method.name, nullable=nullable)
                     tdg.add_edge(class_id, method_id, "contains")
                     for param in method.parameters:
                         param_id = f"{method_id}.{param.name}"
-                        tdg.add_node(param_id, "parameter", param.name)
+                        nullable = has_nullable_annotation(param.annotations)
+                        tdg.add_node(param_id, "parameter", param.name, nullable=nullable)
                         tdg.add_edge(method_id, param_id, "has_parameter")
                 for field in node.fields:
                     for decl in field.declarators:
                         field_id = f"{class_id}.{decl.name}"
-                        tdg.add_node(field_id, "field", decl.name)
+                        nullable = has_nullable_annotation(field.annotations)
+                        tdg.add_node(field_id, "field", decl.name, nullable=nullable)
                         tdg.add_edge(class_id, field_id, "has_field")
                 for path, node in tree:
                     if isinstance(node, javalang.tree.Literal) and node.value == "null":

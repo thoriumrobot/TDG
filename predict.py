@@ -14,8 +14,8 @@ class JavaTDG:
         self.graph = nx.DiGraph()
         self.classnames = set()
 
-    def add_node(self, node_id, node_type, name):
-        self.graph.add_node(node_id, attr={'type': node_type, 'name': name})
+    def add_node(self, node_id, node_type, name, nullable=False):
+        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable})
         logging.debug(f"Added node {node_id} with attributes {self.graph.nodes[node_id]['attr']}")
 
     def add_edge(self, from_node, to_node, edge_type):
@@ -105,11 +105,12 @@ def extract_features(attr):
 
     node_type = attr.get('type', '')
     node_name = attr.get('name', '')
+    nullable = float(attr.get('nullable', 0))
 
     type_id = type_mapping.get(node_type, len(type_mapping))
     name_id = name_mapping[node_name]
 
-    return [float(type_id), float(name_id)]
+    return [float(type_id), float(name_id), nullable]
 
 def preprocess_tdg(tdg):
     features = []
