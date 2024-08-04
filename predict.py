@@ -36,6 +36,11 @@ def get_parent_id(file_name, parent):
             return f"{file_name}.assignment_{parent.position.line}_{parent.position.column}"
     return None
 
+def get_actual_type(node):
+    if hasattr(node, 'type') and hasattr(node.type, 'name'):
+        return node.type.name
+    return None
+
 def process_file(file_path, tdg):
     try:
         with open(file_path, 'r') as file:
