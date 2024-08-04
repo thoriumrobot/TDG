@@ -14,8 +14,8 @@ class JavaTDG:
         self.graph = nx.DiGraph()
         self.classnames = set()
 
-    def add_node(self, node_id, node_type, name, nullable=False):
-        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable})
+    def add_node(self, node_id, node_type, name, nullable=False, actual_type=None):
+        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable, 'actual_type': actual_type})
         logging.debug(f"Added node {node_id} with attributes {self.graph.nodes[node_id]['attr']}")
 
     def add_edge(self, from_node, to_node, edge_type):
@@ -44,39 +44,48 @@ def process_file(file_path, tdg):
         file_name = os.path.basename(file_path)
         logging.info(f"Processing file {file_path}")
 
+        file_id = file_name
+        tdg.add_node(file_id, "file", file_name)
+
         for path, node in tree:
             if isinstance(node, javalang.tree.ClassDeclaration):
                 class_id = f"{file_name}.{node.name}"
                 tdg.add_node(class_id, "class", node.name)
                 tdg.add_classname(node.name)
+                tdg.add_edge(file_id, class_id, "contains")
                 for method in node.methods:
                     method_id = f"{class_id}.{method.name}()"
-                    tdg.add_node(method_id, "method", node.name)
+                    tdg.add_node(method_id, "method", method.name)
                     tdg.add_edge(class_id, method_id, "contains")
                     for param in method.parameters:
                         param_id = f"{method_id}.{param.name}"
-                        tdg.add_node(param_id, "parameter", param.name)
+                        actual_type = get_actual_type(param)
+                        tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
                         tdg.add_edge(method_id, param_id, "has_parameter")
                 for field in node.fields:
                     for decl in field.declarators:
                         field_id = f"{class_id}.{decl.name}"
-                        tdg.add_node(field_id, "field", decl.name)
+                        actual_type = get_actual_type(decl)
+                        tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
                         tdg.add_edge(class_id, field_id, "has_field")
             elif isinstance(node, javalang.tree.MethodDeclaration):
                 method_id = f"{file_name}.{node.name}()"
                 tdg.add_node(method_id, "method", node.name)
                 for param in node.parameters:
                     param_id = f"{method_id}.{param.name}"
-                    tdg.add_node(param_id, "parameter", param.name)
+                    actual_type = get_actual_type(param)
+                    tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
                     tdg.add_edge(method_id, param_id, "has_parameter")
             elif isinstance(node, javalang.tree.FieldDeclaration):
                 for decl in node.declarators:
                     field_id = f"{file_name}.{decl.name}"
-                    tdg.add_node(field_id, "field", decl.name)
+                    actual_type = get_actual_type(decl)
+                    tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
                     tdg.add_edge(file_name, field_id, "has_field")
             elif isinstance(node, javalang.tree.VariableDeclarator):
                 var_id = f"{file_name}.{node.name}"
-                tdg.add_node(var_id, "variable", node.name)
+                actual_type = get_actual_type(node)
+                tdg.add_node(var_id, "variable", node.name, actual_type=actual_type)
             elif isinstance(node, javalang.tree.Literal) and node.value == "null":
                 if node.position:
                     null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
@@ -102,15 +111,18 @@ def process_directory(directory_path):
 def extract_features(attr):
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
+    type_name_mapping = defaultdict(lambda: len(type_name_mapping))
 
     node_type = attr.get('type', '')
     node_name = attr.get('name', '')
+    actual_type = attr.get('actual_type', '')
     nullable = float(attr.get('nullable', 0))
 
     type_id = type_mapping.get(node_type, len(type_mapping))
     name_id = name_mapping[node_name]
+    type_name_id = type_name_mapping[actual_type]
 
-    return [float(type_id), float(name_id), nullable]
+    return [float(type_id), float(name_id), float(type_name_id), nullable]
 
 def preprocess_tdg(tdg):
     features = []
