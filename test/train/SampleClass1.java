@@ -7,7 +7,7 @@ public class SampleClass1 {
         this.field2 = field2;
     }
 
-    public void method1(String param1) {
+    public void method1(@Nullable String param1) {
         if (param1 == null) {
             System.out.println("param1 is null");
         }
