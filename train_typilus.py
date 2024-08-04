@@ -9,6 +9,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 import logging
 from collections import defaultdict
 import random
+import tensorflow as tf
 
 def extract_features(attr):
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
@@ -52,9 +53,9 @@ def build_model(input_dim):
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
-def train_model(model, X_train, y_train, X_val, y_val):
+def train_model(model, train_dataset, val_dataset, batch_size):
     checkpoint = ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max')
-    history = model.fit(X_train, y_train, epochs=50, batch_size=32, validation_data=(X_val, y_val), callbacks=[checkpoint])
+    history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint], batch_size=batch_size)
     return history
 
 def load_tdg_data(json_dir):
@@ -82,6 +83,11 @@ def balance_dataset(features, labels):
     logging.info(f"Balanced dataset to {len(balanced_features)} features and {len(balanced_labels)} labels")
     return balanced_features, balanced_labels
 
+def create_tf_dataset(features, labels, batch_size):
+    dataset = tf.data.Dataset.from_tensor_slices((features, labels))
+    dataset = dataset.shuffle(buffer_size=len(features)).batch(batch_size)
+    return dataset
+
 def main(json_output_dir, model_output_path):
     tdg_data = load_tdg_data(json_output_dir)
     features, labels = [], []
@@ -99,11 +105,17 @@ def main(json_output_dir, model_output_path):
     labels = np.concatenate(labels)
     
     features, labels = balance_dataset(features, labels)
-    
-    X_train, X_val, y_train, y_val = train_test_split(features, labels, test_size=0.2, random_state=42)
+
+    batch_size = 32
+
+    train_features, val_features, train_labels, val_labels = train_test_split(features, labels, test_size=0.2, random_state=42)
+
+    train_dataset = create_tf_dataset(train_features, train_labels, batch_size)
+    val_dataset = create_tf_dataset(val_features, val_labels, batch_size)
+
     input_dim = len(features[0])
     model = build_model(input_dim)
-    train_model(model, X_train, y_train, X_val, y_val)
+    train_model(model, train_dataset, val_dataset, batch_size)
     best_model = load_model('best_model.keras')
     best_model.save(model_output_path)
     logging.info(f"Model training complete and saved as {model_output_path}")
