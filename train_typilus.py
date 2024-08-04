@@ -13,15 +13,18 @@ import random
 def extract_features(attr):
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
+    type_name_mapping = defaultdict(lambda: len(type_name_mapping))
 
     node_type = attr.get('type', '')
     node_name = attr.get('name', '')
+    actual_type = attr.get('actual_type', '')
     nullable = float(attr.get('nullable', 0))
 
     type_id = type_mapping.get(node_type, len(type_mapping))
     name_id = name_mapping[node_name]
+    type_name_id = type_name_mapping[actual_type]
 
-    return [float(type_id), float(name_id), nullable]
+    return [float(type_id), float(name_id), float(type_name_id), nullable]
 
 def preprocess_tdg(tdg):
     features = []
