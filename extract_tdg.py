@@ -38,8 +38,8 @@ def has_nullable_annotation(annotations):
     return any(annotation.name == 'Nullable' for annotation in annotations)
 
 def get_actual_type(node):
-    if isinstance(node, javalang.tree.FieldDeclaration) or isinstance(node, javalang.tree.VariableDeclarator):
-        return node.type.name if hasattr(node.type, 'name') else None
+    if hasattr(node, 'type') and hasattr(node.type, 'name'):
+        return node.type.name
     return None
 
 def process_file(file_path, output_dir):
