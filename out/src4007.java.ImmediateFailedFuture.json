@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ImmediateFailedFuture", "nullable": false}, "id": "src4007.java.ImmediateFailedFuture"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src4007.java.null_80_97"}], "links": []}

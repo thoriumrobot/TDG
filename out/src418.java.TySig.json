@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "TySig", "nullable": false}, "id": "src418.java.TySig"}, {"attr": {"type": "method", "name": "kind", "nullable": false}, "id": "src418.java.TySig.kind()"}], "links": [{"type": "contains", "source": "src418.java.TySig", "target": "src418.java.TySig.kind()"}]}

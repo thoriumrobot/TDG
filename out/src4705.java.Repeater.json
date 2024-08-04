@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Repeater", "nullable": false}, "id": "src4705.java.Repeater"}, {"attr": {"type": "field", "name": "repeater", "nullable": true}, "id": "src4705.java.Repeater.repeater"}], "links": [{"type": "has_field", "source": "src4705.java.Repeater", "target": "src4705.java.Repeater.repeater"}]}

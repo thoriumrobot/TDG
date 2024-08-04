@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "BooleanResponse", "nullable": false}, "id": "src5522.java.BooleanResponse"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src5522.java.null_372_13"}], "links": []}

@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "PayloadSourceMessage", "nullable": false}, "id": "src1879.java.PayloadSourceMessage"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src1879.java.null_59_14"}], "links": []}

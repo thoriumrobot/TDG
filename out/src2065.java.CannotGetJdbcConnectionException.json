@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "CannotGetJdbcConnectionException", "nullable": false}, "id": "src2065.java.CannotGetJdbcConnectionException"}], "links": []}

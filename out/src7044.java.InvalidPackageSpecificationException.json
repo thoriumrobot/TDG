@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "InvalidPackageSpecificationException", "nullable": false}, "id": "src7044.java.InvalidPackageSpecificationException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src7044.java.null_255_14"}], "links": []}

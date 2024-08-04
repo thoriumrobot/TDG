@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "LoadingStartedEvent", "nullable": false}, "id": "src1297.java.LoadingStartedEvent"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src1297.java.null_123_26"}], "links": []}

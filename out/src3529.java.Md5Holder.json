@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Md5Holder", "nullable": false}, "id": "src3529.java.Md5Holder"}, {"attr": {"type": "field", "name": "MD5", "nullable": false}, "id": "src3529.java.Md5Holder.MD5"}], "links": [{"type": "has_field", "source": "src3529.java.Md5Holder", "target": "src3529.java.Md5Holder.MD5"}]}

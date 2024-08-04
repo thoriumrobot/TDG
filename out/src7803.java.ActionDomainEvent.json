@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ActionDomainEvent", "nullable": false}, "id": "src7803.java.ActionDomainEvent"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src7803.java.null_100_24"}], "links": []}

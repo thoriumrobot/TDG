@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "State", "nullable": false}, "id": "src2976.java.State"}, {"attr": {"type": "field", "name": "arguments", "nullable": false}, "id": "src2976.java.State.arguments"}], "links": [{"type": "has_field", "source": "src2976.java.State", "target": "src2976.java.State.arguments"}]}

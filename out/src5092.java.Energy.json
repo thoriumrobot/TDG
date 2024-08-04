@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Energy", "nullable": false}, "id": "src5092.java.Energy"}, {"attr": {"type": "field", "name": "energy", "nullable": true}, "id": "src5092.java.Energy.energy"}], "links": [{"type": "has_field", "source": "src5092.java.Energy", "target": "src5092.java.Energy.energy"}]}

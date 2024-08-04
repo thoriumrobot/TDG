@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "TestService", "nullable": false}, "id": "src5700.java.TestService"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src5700.java.null_16_20"}], "links": []}

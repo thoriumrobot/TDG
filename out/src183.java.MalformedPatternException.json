@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "MalformedPatternException", "nullable": false}, "id": "src183.java.MalformedPatternException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src183.java.null_26_26"}], "links": []}

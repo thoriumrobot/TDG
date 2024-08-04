@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Visitor", "nullable": false}, "id": "src2398.java.Visitor"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2398.java.null_172_33"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2398.java.null_251_35"}], "links": []}

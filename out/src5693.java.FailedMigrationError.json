@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "FailedMigrationError", "nullable": false}, "id": "src5693.java.FailedMigrationError"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src5693.java.null_36_12"}], "links": []}

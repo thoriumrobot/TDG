@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Builder", "nullable": false}, "id": "src5531.java.Builder"}, {"attr": {"type": "method", "name": "self", "nullable": false}, "id": "src5531.java.Builder.self()"}], "links": [{"type": "contains", "source": "src5531.java.Builder", "target": "src5531.java.Builder.self()"}]}

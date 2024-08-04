@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "ChatData", "nullable": false}, "id": "src1650.java.ChatData"}, {"attr": {"type": "field", "name": "users", "nullable": false}, "id": "src1650.java.ChatData.users"}], "links": [{"type": "has_field", "source": "src1650.java.ChatData", "target": "src1650.java.ChatData.users"}]}

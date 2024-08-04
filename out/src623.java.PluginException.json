@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "PluginException", "nullable": false}, "id": "src623.java.PluginException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src623.java.null_135_39"}], "links": []}

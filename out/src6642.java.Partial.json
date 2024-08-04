@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Partial", "nullable": false}, "id": "src6642.java.Partial"}, {"attr": {"type": "method", "name": "toString", "nullable": false}, "id": "src6642.java.Partial.toString()"}], "links": [{"type": "contains", "source": "src6642.java.Partial", "target": "src6642.java.Partial.toString()"}]}

@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "OptimisticLockingFailureException", "nullable": false}, "id": "src1928.java.OptimisticLockingFailureException"}], "links": []}

@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "SortedAssertionFailure", "nullable": false}, "id": "src2609.java.SortedAssertionFailure"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src2609.java.null_12_67"}], "links": []}

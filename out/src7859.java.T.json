@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "T", "nullable": false}, "id": "src7859.java.T"}, {"attr": {"type": "field", "name": "set", "nullable": false}, "id": "src7859.java.T.set"}], "links": [{"type": "has_field", "source": "src7859.java.T", "target": "src7859.java.T.set"}]}

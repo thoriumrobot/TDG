@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Profile", "nullable": false}, "id": "src2774.java.Profile"}, {"attr": {"type": "field", "name": "values", "nullable": false}, "id": "src2774.java.Profile.values"}], "links": [{"type": "has_field", "source": "src2774.java.Profile", "target": "src2774.java.Profile.values"}]}

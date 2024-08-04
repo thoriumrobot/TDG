@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "Response", "nullable": false}, "id": "src5920.java.Response"}, {"attr": {"type": "field", "name": "tokens", "nullable": true}, "id": "src5920.java.Response.tokens"}], "links": [{"type": "has_field", "source": "src5920.java.Response", "target": "src5920.java.Response.tokens"}]}

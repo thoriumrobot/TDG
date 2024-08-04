@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "MyThread", "nullable": false}, "id": "src9881.java.MyThread"}, {"attr": {"type": "method", "name": "run", "nullable": false}, "id": "src9881.java.MyThread.run()"}], "links": [{"type": "contains", "source": "src9881.java.MyThread", "target": "src9881.java.MyThread.run()"}]}

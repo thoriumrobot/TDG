@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "class", "name": "IncompleteTransactionException", "nullable": false}, "id": "src6389.java.IncompleteTransactionException"}, {"attr": {"type": "literal", "name": "null", "nullable": false}, "id": "src6389.java.null_60_20"}], "links": []}
