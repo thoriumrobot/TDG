@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src29.java", "nullable": false, "actual_type": null}, "id": "src29.java"}, {"attr": {"type": "class", "name": "Spigot", "nullable": false, "actual_type": null}, "id": "src29.java.Spigot"}], "links": [{"type": "contains", "source": "src29.java", "target": "src29.java.Spigot"}]}
