@@ -106,7 +106,7 @@ def main(json_output_dir, model_output_path):
     
     features, labels = balance_dataset(features, labels)
 
-    batch_size = 32
+    batch_size = 10
 
     train_features, val_features, train_labels, val_labels = train_test_split(features, labels, test_size=0.2, random_state=42)
 
