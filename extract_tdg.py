@@ -12,8 +12,8 @@ class JavaTDG:
         self.graph = nx.DiGraph()
         self.classnames = set()
 
-    def add_node(self, node_id, node_type, name, nullable=False):
-        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable})
+    def add_node(self, node_id, node_type, name, nullable=False, actual_type=None):
+        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable, 'actual_type': actual_type})
         logging.debug(f"Added node {node_id} with attributes {self.graph.nodes[node_id]['attr']}")
 
     def add_edge(self, from_node, to_node, edge_type):
@@ -37,6 +37,11 @@ def get_parent_id(file_name, parent):
 def has_nullable_annotation(annotations):
     return any(annotation.name == 'Nullable' for annotation in annotations)
 
+def get_actual_type(node):
+    if isinstance(node, javalang.tree.FieldDeclaration) or isinstance(node, javalang.tree.VariableDeclarator):
+        return node.type.name if hasattr(node.type, 'name') else None
+    return None
+
 def process_file(file_path, output_dir):
     try:
         with open(file_path, 'r') as file:
@@ -45,12 +50,16 @@ def process_file(file_path, output_dir):
         file_name = os.path.basename(file_path)
         logging.info(f"Processing file {file_path}")
 
+        tdg = JavaTDG()
+        file_id = file_name
+        tdg.add_node(file_id, "file", file_name)
+
         for path, node in tree:
             if isinstance(node, javalang.tree.ClassDeclaration):
-                tdg = JavaTDG()
                 class_id = f"{file_name}.{node.name}"
                 tdg.add_node(class_id, "class", node.name)
                 tdg.add_classname(node.name)
+                tdg.add_edge(file_id, class_id, "contains")
                 for method in node.methods:
                     method_id = f"{class_id}.{method.name}()"
                     nullable = has_nullable_annotation(method.annotations)
@@ -59,13 +68,15 @@ def process_file(file_path, output_dir):
                     for param in method.parameters:
                         param_id = f"{method_id}.{param.name}"
                         nullable = has_nullable_annotation(param.annotations)
-                        tdg.add_node(param_id, "parameter", param.name, nullable=nullable)
+                        actual_type = get_actual_type(param)
+                        tdg.add_node(param_id, "parameter", param.name, nullable=nullable, actual_type=actual_type)
                         tdg.add_edge(method_id, param_id, "has_parameter")
                 for field in node.fields:
                     for decl in field.declarators:
                         field_id = f"{class_id}.{decl.name}"
                         nullable = has_nullable_annotation(field.annotations)
-                        tdg.add_node(field_id, "field", decl.name, nullable=nullable)
+                        actual_type = get_actual_type(decl)
+                        tdg.add_node(field_id, "field", decl.name, nullable=nullable, actual_type=actual_type)
                         tdg.add_edge(class_id, field_id, "has_field")
                 for path, node in tree:
                     if isinstance(node, javalang.tree.Literal) and node.value == "null":
