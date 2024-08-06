@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, Dropout, Input
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 import logging
 from collections import defaultdict
 import random
@@ -53,19 +53,10 @@ def build_model(input_dim):
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
-def train_model(model, train_dataset, val_dataset, batch_size):
-    checkpoint = ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max')
-    history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint], batch_size=batch_size)
-    return history
-
-def load_tdg_data(json_dir):
-    data = []
-    for file_name in os.listdir(json_dir):
-        if file_name.endswith('.json'):
-            with open(os.path.join(json_dir, file_name), 'r') as f:
-                data.append(json.load(f))
-    logging.info(f"Loaded {len(data)} TDG files")
-    return data
+def load_tdg_data(json_path):
+    with open(json_path, 'r') as f:
+        tdg = json.load(f)
+    return preprocess_tdg(tdg)
 
 def balance_dataset(features, labels):
     pos_indices = [i for i, label in enumerate(labels) if label == 1]
@@ -83,39 +74,42 @@ def balance_dataset(features, labels):
     logging.info(f"Balanced dataset to {len(balanced_features)} features and {len(balanced_labels)} labels")
     return balanced_features, balanced_labels
 
-def create_tf_dataset(features, labels, batch_size):
-    dataset = tf.data.Dataset.from_tensor_slices((features, labels))
-    dataset = dataset.shuffle(buffer_size=len(features)).batch(batch_size)
+def data_generator(file_list):
+    for file_path in file_list:
+        features, labels = load_tdg_data(file_path)
+        features, labels = balance_dataset(features, labels)
+        for feature, label in zip(features, labels):
+            yield feature, label
+
+def create_tf_dataset(file_list, batch_size):
+    dataset = tf.data.Dataset.from_generator(
+        lambda: data_generator(file_list),
+        output_signature=(
+            tf.TensorSpec(shape=(None,), dtype=tf.float32),
+            tf.TensorSpec(shape=(), dtype=tf.float32),
+        )
+    )
+    dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
     return dataset
 
 def main(json_output_dir, model_output_path):
-    tdg_data = load_tdg_data(json_output_dir)
-    features, labels = [], []
-    for tdg in tdg_data:
-        f, l = preprocess_tdg(tdg)
-        if len(f) > 0:  # Only include if features were extracted
-            features.append(f)
-            labels.append(l)
+    file_list = [os.path.join(json_output_dir, f) for f in os.listdir(json_output_dir) if f.endswith('.json')]
+    train_files, val_files = train_test_split(file_list, test_size=0.2, random_state=42)
 
-    if len(features) == 0 or len(labels) == 0:
-        logging.error("No valid features or labels found. Exiting.")
-        return
+    batch_size = 32
 
-    features = np.concatenate(features)
-    labels = np.concatenate(labels)
-    
-    features, labels = balance_dataset(features, labels)
+    train_dataset = create_tf_dataset(train_files, batch_size)
+    val_dataset = create_tf_dataset(val_files, batch_size)
 
-    batch_size = 10
-
-    train_features, val_features, train_labels, val_labels = train_test_split(features, labels, test_size=0.2, random_state=42)
-
-    train_dataset = create_tf_dataset(train_features, train_labels, batch_size)
-    val_dataset = create_tf_dataset(val_features, val_labels, batch_size)
-
-    input_dim = len(features[0])
+    sample_feature, _ = next(data_generator(train_files))
+    input_dim = len(sample_feature)
     model = build_model(input_dim)
-    train_model(model, train_dataset, val_dataset, batch_size)
+
+    checkpoint = ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max')
+    early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, mode='max', restore_best_weights=True)
+
+    history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint, early_stopping])
+
     best_model = load_model('best_model.keras')
     best_model.save(model_output_path)
     logging.info(f"Model training complete and saved as {model_output_path}")
@@ -130,3 +124,4 @@ if __name__ == "__main__":
     model_output_path = sys.argv[2]
 
     main(json_output_dir, model_output_path)
+
