@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src2097.java", "nullable": false, "actual_type": null}, "id": "src2097.java"}, {"attr": {"type": "method", "name": "conflictResolutionType", "nullable": false, "actual_type": null}, "id": "src2097.java.conflictResolutionType()"}], "links": []}

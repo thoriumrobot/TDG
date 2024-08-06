@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src3878.java", "nullable": false, "actual_type": null}, "id": "src3878.java"}, {"attr": {"type": "method", "name": "getRequestPacket", "nullable": false, "actual_type": null}, "id": "src3878.java.getRequestPacket()"}], "links": []}

@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src526.java", "nullable": false, "actual_type": null}, "id": "src526.java"}, {"attr": {"type": "method", "name": "reason", "nullable": false, "actual_type": null}, "id": "src526.java.reason()"}], "links": []}

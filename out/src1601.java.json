@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src1601.java", "nullable": false, "actual_type": null}, "id": "src1601.java"}, {"attr": {"type": "method", "name": "getExpression", "nullable": false, "actual_type": null}, "id": "src1601.java.getExpression()"}], "links": []}

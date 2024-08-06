@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src2412.java", "nullable": false, "actual_type": null}, "id": "src2412.java"}, {"attr": {"type": "method", "name": "getTimeZone", "nullable": false, "actual_type": null}, "id": "src2412.java.getTimeZone()"}], "links": []}
