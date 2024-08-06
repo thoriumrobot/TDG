@@ -52,7 +52,7 @@ def preprocess_tdg(tdg):
     features = []
     labels = []
     for node_id, attr in tdg.nodes(data='attr'):
-        if attr['type'] in ['method', 'field', 'parameter']:
+        if attr and attr.get('type') in ['method', 'field', 'parameter']:
             feature_vector = extract_features(attr)
             label = float(attr.get('nullable', 0))
             features.append(feature_vector)
@@ -107,7 +107,7 @@ def create_tf_dataset(file_list, batch_size):
     dataset = tf.data.Dataset.from_generator(
         lambda: data_generator(file_list),
         output_signature=(
-            tf.TensorSpec(shape=(None,), dtype=tf.float32),
+            tf.TensorSpec(shape=(4,), dtype=tf.float32),
             tf.TensorSpec(shape=(), dtype=tf.float32),
         )
     )
