@@ -1,15 +1,13 @@
 import os
 import sys
-import json
 import numpy as np
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 import logging
-import random
 import tensorflow as tf
-from tdg_utils import f1_score, load_tdg_data, create_tf_dataset
+from tdg_utils import f1_score, create_tf_dataset
 
 def build_model(input_dim):
     model = Sequential([

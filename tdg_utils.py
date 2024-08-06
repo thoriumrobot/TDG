@@ -3,6 +3,7 @@ import networkx as nx
 from collections import defaultdict
 from tensorflow.keras import backend as K
 import tensorflow as tf
+import random
 
 class JavaTDG:
     def __init__(self):
@@ -65,7 +66,8 @@ def preprocess_tdg(tdg):
 def load_tdg_data(json_path):
     with open(json_path, 'r') as f:
         data = json.load(f)
-    tdg = nx.node_link_graph(data)
+    tdg = JavaTDG()
+    tdg.graph = nx.node_link_graph(data)
     return preprocess_tdg(tdg)
 
 def balance_dataset(features, labels):
