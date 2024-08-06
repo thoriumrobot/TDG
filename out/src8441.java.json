@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src8441.java", "nullable": false, "actual_type": null}, "id": "src8441.java"}, {"attr": {"type": "method", "name": "getEditor", "nullable": false, "actual_type": null}, "id": "src8441.java.getEditor()"}], "links": []}

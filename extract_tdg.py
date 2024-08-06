@@ -4,6 +4,7 @@ import json
 import javalang
 import logging
 import traceback
+import networkx as nx
 from tdg_utils import JavaTDG
 
 def get_parent_id(file_name, parent):

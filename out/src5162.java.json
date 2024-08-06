@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src5162.java", "nullable": false, "actual_type": null}, "id": "src5162.java"}, {"attr": {"type": "method", "name": "getDiscardChannel", "nullable": false, "actual_type": null}, "id": "src5162.java.getDiscardChannel()"}], "links": []}

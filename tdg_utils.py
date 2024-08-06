@@ -1,6 +1,8 @@
+import json
 import networkx as nx
 from collections import defaultdict
 from tensorflow.keras import backend as K
+import tensorflow as tf
 
 class JavaTDG:
     def __init__(self):
@@ -98,4 +100,3 @@ def create_tf_dataset(file_list, batch_size):
     )
     dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
     return dataset
-
