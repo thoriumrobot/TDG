@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src7.java", "nullable": false, "actual_type": null}, "id": "src7.java"}, {"attr": {"type": "class", "name": "Visitor", "nullable": false, "actual_type": null}, "id": "src7.java.Visitor"}], "links": [{"type": "contains", "source": "src7.java", "target": "src7.java.Visitor"}]}

@@ -1,1 +1,0 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src733.java", "nullable": false, "actual_type": null}, "id": "src733.java"}, {"attr": {"type": "class", "name": "Error", "nullable": false, "actual_type": null}, "id": "src733.java.Error"}], "links": [{"type": "contains", "source": "src733.java", "target": "src733.java.Error"}]}

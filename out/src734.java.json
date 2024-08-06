@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src734.java", "nullable": false, "actual_type": null}, "id": "src734.java"}, {"attr": {"type": "method", "name": "getTimer", "nullable": false, "actual_type": null}, "id": "src734.java.getTimer()"}], "links": []}

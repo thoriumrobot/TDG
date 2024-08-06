@@ -1,0 +1,1 @@
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src1270.java", "nullable": false, "actual_type": null}, "id": "src1270.java"}, {"attr": {"type": "method", "name": "indexName", "nullable": false, "actual_type": null}, "id": "src1270.java.indexName()"}], "links": []}

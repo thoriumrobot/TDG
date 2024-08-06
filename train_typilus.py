@@ -10,6 +10,7 @@ import logging
 from collections import defaultdict
 import random
 import tensorflow as tf
+import networkx as nx
 
 # Define the custom F1 score metric
 from tensorflow.keras import backend as K
@@ -50,7 +51,7 @@ def extract_features(attr):
 def preprocess_tdg(tdg):
     features = []
     labels = []
-    for node_id, attr in tdg.graph.nodes(data='attr'):
+    for node_id, attr in tdg.nodes(data='attr'):
         if attr['type'] in ['method', 'field', 'parameter']:
             feature_vector = extract_features(attr)
             label = float(attr.get('nullable', 0))
@@ -75,7 +76,8 @@ def build_model(input_dim):
 
 def load_tdg_data(json_path):
     with open(json_path, 'r') as f:
-        tdg = json.load(f)
+        data = json.load(f)
+    tdg = nx.node_link_graph(data)
     return preprocess_tdg(tdg)
 
 def balance_dataset(features, labels):
@@ -144,4 +146,3 @@ if __name__ == "__main__":
     model_output_path = sys.argv[2]
 
     main(json_output_dir, model_output_path)
-
