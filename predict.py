@@ -7,6 +7,7 @@ import numpy as np
 from tensorflow.keras.models import load_model
 import logging
 from collections import defaultdict
+import tensorflow as tf
 import traceback
 
 class JavaTDG:
@@ -105,14 +106,6 @@ def process_file(file_path, tdg):
         logging.error(f"Error processing file {file_path}: {e}")
         logging.error(traceback.format_exc())
 
-def process_directory(directory_path):
-    tdg = JavaTDG()
-    for root, _, files in os.walk(directory_path):
-        for file in files:
-            if file.endswith('.java'):
-                process_file(os.path.join(root, file), tdg)
-    return tdg
-
 def extract_features(attr):
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
@@ -143,6 +136,25 @@ def preprocess_tdg(tdg):
     logging.info(f"Extracted {len(features)} features from TDG")
     return np.array(features), node_ids
 
+def data_generator(file_list):
+    for file_path in file_list:
+        tdg = JavaTDG()
+        process_file(file_path, tdg)
+        features, node_ids = preprocess_tdg(tdg)
+        for feature, node_id in zip(features, node_ids):
+            yield feature, node_id
+
+def create_tf_dataset(file_list, batch_size):
+    dataset = tf.data.Dataset.from_generator(
+        lambda: data_generator(file_list),
+        output_signature=(
+            tf.TensorSpec(shape=(None,), dtype=tf.float32),
+            tf.TensorSpec(shape=(), dtype=tf.string),
+        )
+    )
+    dataset = dataset.batch(batch_size)
+    return dataset
+
 def annotate_file(file_path, annotations):
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -157,38 +169,40 @@ def annotate_file(file_path, annotations):
     with open(file_path, 'w') as file:
         file.writelines(lines)
 
-def process_project(project_dir, model):
-    tdg = process_directory(project_dir)
-    features, node_ids = preprocess_tdg(tdg)
+def process_project(project_dir, model, batch_size):
+    file_list = [os.path.join(root, file)
+                 for root, _, files in os.walk(project_dir)
+                 for file in files if file.endswith('.java')]
+    
+    dataset = create_tf_dataset(file_list, batch_size)
 
-    if features.size == 0:
-        logging.warning(f"No valid features extracted for project {project_dir}. Skipping annotation.")
-        return
-    
-    predictions = model.predict(features)
-    
+    predictions = model.predict(dataset)
+
     annotations = []
-    for node_id, prediction in zip(node_ids, predictions):
-        if prediction > 0.5:  # Assuming a threshold of 0.5 for @Nullable annotation
-            node_info = node_id.split('.')
-            file_name = node_info[0]
-            try:
-                line_num = int(node_info[1])
-            except ValueError:
-                logging.warning(f"Invalid line number in node_id {node_id} for project {project_dir}. Skipping annotation.")
-                continue
-            col_num = 0
+    for batch in dataset:
+        features, node_ids = batch
+        batch_predictions = model.predict(features)
+        for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
+            if prediction > 0.5:  # Assuming a threshold of 0.5 for @Nullable annotation
+                node_info = node_id.decode('utf-8').split('.')
+                file_name = node_info[0]
+                try:
+                    line_num = int(node_info[1])
+                except ValueError:
+                    logging.warning(f"Invalid line number in node_id {node_id} for project {project_dir}. Skipping annotation.")
+                    continue
+                col_num = 0
 
-            annotations.append((node_id, line_num, col_num))
-    
-    for file_name in set([ann[0].split('.')[0] for ann in annotations]):
+                annotations.append((file_name, line_num, col_num))
+
+    for file_name in set([ann[0] for ann in annotations]):
         file_path = os.path.join(project_dir, file_name)
-        file_annotations = [ann for ann in annotations if ann[0].split('.')[0] == file_name]
+        file_annotations = [ann for ann in annotations if ann[0] == file_name]
         annotate_file(file_path, file_annotations)
     
     logging.info(f"Annotation complete for project {project_dir}")
 
-def main(project_dir, model_path, output_dir):
+def main(project_dir, model_path, output_dir, batch_size):
     model = load_model(model_path)
     
     for subdir in os.listdir(project_dir):
@@ -196,7 +210,7 @@ def main(project_dir, model_path, output_dir):
         if os.path.isdir(subdir_path):
             output_subdir = os.path.join(output_dir, subdir)
             os.makedirs(output_subdir, exist_ok=True)
-            process_project(subdir_path, model)
+            process_project(subdir_path, model, batch_size)
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
@@ -208,5 +222,7 @@ if __name__ == "__main__":
     project_dir = sys.argv[1]
     model_path = sys.argv[2]
     output_dir = sys.argv[3]
+    batch_size = 32
 
-    main(project_dir, model_path, output_dir)
+    main(project_dir, model_path, output_dir, batch_size)
+
