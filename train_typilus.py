@@ -11,6 +11,26 @@ from collections import defaultdict
 import random
 import tensorflow as tf
 
+# Define the custom F1 score metric
+from tensorflow.keras import backend as K
+
+def f1_score(y_true, y_pred):
+    def recall(y_true, y_pred):
+        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+        recall = true_positives / (possible_positives + K.epsilon())
+        return recall
+
+    def precision(y_true, y_pred):
+        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+        predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+        precision = true_positives / (predicted_positives + K.epsilon())
+        return precision
+
+    precision = precision(y_true, y_pred)
+    recall = recall(y_true, y_pred)
+    return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
+
 def extract_features(attr):
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
@@ -30,12 +50,12 @@ def extract_features(attr):
 def preprocess_tdg(tdg):
     features = []
     labels = []
-    for node in tdg['nodes']:
-        attr = node.get('attr', {})
-        feature_vector = extract_features(attr)
-        label = float(attr.get('nullable', 0))
-        features.append(feature_vector)
-        labels.append(label)
+    for node_id, attr in tdg.graph.nodes(data='attr'):
+        if attr['type'] in ['method', 'field', 'parameter']:
+            feature_vector = extract_features(attr)
+            label = float(attr.get('nullable', 0))
+            features.append(feature_vector)
+            labels.append(label)
     logging.info(f"Extracted {len(features)} features and {len(labels)} labels from TDG")
     return np.array(features), np.array(labels)
 
@@ -50,7 +70,7 @@ def build_model(input_dim):
         Dropout(0.5),
         Dense(1, activation='sigmoid')
     ])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy', f1_score])
     return model
 
 def load_tdg_data(json_path):
@@ -105,12 +125,12 @@ def main(json_output_dir, model_output_path):
     input_dim = len(sample_feature)
     model = build_model(input_dim)
 
-    checkpoint = ModelCheckpoint('best_model.keras', monitor='val_accuracy', save_best_only=True, mode='max')
-    early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, mode='max', restore_best_weights=True)
+    checkpoint = ModelCheckpoint('best_model.keras', monitor='val_f1_score', save_best_only=True, mode='max')
+    early_stopping = EarlyStopping(monitor='val_f1_score', patience=5, mode='max', restore_best_weights=True)
 
     history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint, early_stopping])
 
-    best_model = load_model('best_model.keras')
+    best_model = load_model('best_model.keras', custom_objects={'f1_score': f1_score})
     best_model.save(model_output_path)
     logging.info(f"Model training complete and saved as {model_output_path}")
 

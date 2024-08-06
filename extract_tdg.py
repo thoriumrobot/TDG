@@ -42,7 +42,7 @@ def get_actual_type(node):
         return node.type.name
     return None
 
-def process_file(file_path, output_dir):
+def process_file(file_path, tdg):
     try:
         with open(file_path, 'r') as file:
             content = file.read()
@@ -50,7 +50,6 @@ def process_file(file_path, output_dir):
         file_name = os.path.basename(file_path)
         logging.info(f"Processing file {file_path}")
 
-        tdg = JavaTDG()
         file_id = file_name
         tdg.add_node(file_id, "file", file_name)
 
@@ -78,18 +77,32 @@ def process_file(file_path, output_dir):
                         actual_type = get_actual_type(decl)
                         tdg.add_node(field_id, "field", decl.name, nullable=nullable, actual_type=actual_type)
                         tdg.add_edge(class_id, field_id, "has_field")
-                for path, node in tree:
-                    if isinstance(node, javalang.tree.Literal) and node.value == "null":
-                        if node.position:
-                            null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
-                            tdg.add_node(null_id, "literal", "null")
-                            parent = path[-2] if len(path) > 1 else None
-                            parent_id = get_parent_id(file_name, parent)
-                            if parent_id:
-                                tdg.add_edge(parent_id, null_id, "contains")
-                
-                output_path = os.path.join(output_dir, f"{class_id}.json")
-                save_tdg_to_json(tdg, output_path)
+            elif isinstance(node, javalang.tree.MethodDeclaration):
+                method_id = f"{file_name}.{node.name}()"
+                tdg.add_node(method_id, "method", node.name)
+                for param in node.parameters:
+                    param_id = f"{method_id}.{param.name}"
+                    actual_type = get_actual_type(param)
+                    tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
+                    tdg.add_edge(method_id, param_id, "has_parameter")
+            elif isinstance(node, javalang.tree.FieldDeclaration):
+                for decl in node.declarators:
+                    field_id = f"{file_name}.{decl.name}"
+                    actual_type = get_actual_type(decl)
+                    tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
+                    tdg.add_edge(file_name, field_id, "has_field")
+            elif isinstance(node, javalang.tree.VariableDeclarator):
+                var_id = f"{file_name}.{node.name}"
+                actual_type = get_actual_type(node)
+                tdg.add_node(var_id, "variable", node.name, actual_type=actual_type)
+            elif isinstance(node, javalang.tree.Literal) and node.value == "null":
+                if node.position:
+                    null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
+                    tdg.add_node(null_id, "literal", "null")
+                    parent = path[-2] if len(path) > 1 else None
+                    parent_id = get_parent_id(file_name, parent)
+                    if parent_id:
+                        tdg.add_edge(parent_id, null_id, "contains")
     except javalang.parser.JavaSyntaxError as e:
         logging.error(f"Syntax error in file {file_path}: {e}")
     except Exception as e:
@@ -115,4 +128,8 @@ if __name__ == "__main__":
     for root, _, files in os.walk(project_dir):
         for file in files:
             if file.endswith('.java'):
-                process_file(os.path.join(root, file), output_dir)
+                tdg = JavaTDG()
+                process_file(os.path.join(root, file), tdg)
+                output_path = os.path.join(output_dir, f"{file}.json")
+                save_tdg_to_json(tdg, output_path)
+

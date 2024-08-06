@@ -127,12 +127,12 @@ def preprocess_tdg(tdg):
     node_ids = []
     for node in tdg.graph.nodes(data=True):
         node_id, attr = node
-        if 'attr' in attr:
+        if 'attr' in attr and attr['attr']['type'] in ['method', 'field', 'parameter']:
             feature_vector = extract_features(attr['attr'])
             features.append(feature_vector)
             node_ids.append(node_id)
         else:
-            logging.warning(f"Node {node_id} is missing 'attr' attribute")
+            logging.warning(f"Node {node_id} is missing 'attr' attribute or not relevant for prediction")
     logging.info(f"Extracted {len(features)} features from TDG")
     return np.array(features), node_ids
 
@@ -175,8 +175,6 @@ def process_project(project_dir, model, batch_size):
                  for file in files if file.endswith('.java')]
     
     dataset = create_tf_dataset(file_list, batch_size)
-
-    predictions = model.predict(dataset)
 
     annotations = []
     for batch in dataset:
