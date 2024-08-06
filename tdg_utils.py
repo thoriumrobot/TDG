@@ -3,8 +3,9 @@ import networkx as nx
 from collections import defaultdict
 from tensorflow.keras import backend as K
 import tensorflow as tf
-import numpy as np  # Add this import statement
+import numpy as np  # Ensure this import is included
 import random
+import logging  # Add logging to capture issues
 
 class JavaTDG:
     def __init__(self):
@@ -65,11 +66,15 @@ def preprocess_tdg(tdg):
     return np.array(features), np.array(labels)
 
 def load_tdg_data(json_path):
-    with open(json_path, 'r') as f:
-        data = json.load(f)
-    tdg = JavaTDG()
-    tdg.graph = nx.node_link_graph(data)
-    return preprocess_tdg(tdg)
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        tdg = JavaTDG()
+        tdg.graph = nx.node_link_graph(data)
+        return preprocess_tdg(tdg)
+    except json.JSONDecodeError as e:
+        logging.error(f"Error decoding JSON from {json_path}: {e}")
+        return np.array([]), np.array([])  # Return empty arrays if there's an error
 
 def balance_dataset(features, labels):
     pos_indices = [i for i, label in enumerate(labels) if label == 1]
@@ -89,6 +94,9 @@ def balance_dataset(features, labels):
 def data_generator(file_list):
     for file_path in file_list:
         features, labels = load_tdg_data(file_path)
+        if features.size == 0 or labels.size == 0:  # Skip empty arrays
+            logging.warning(f"No valid data found in {file_path}, skipping.")
+            continue
         features, labels = balance_dataset(features, labels)
         for feature, label in zip(features, labels):
             yield feature, label
