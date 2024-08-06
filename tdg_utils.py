@@ -3,6 +3,7 @@ import networkx as nx
 from collections import defaultdict
 from tensorflow.keras import backend as K
 import tensorflow as tf
+import numpy as np  # Add this import statement
 import random
 
 class JavaTDG:
