@@ -2,25 +2,9 @@ import os
 import sys
 import json
 import javalang
-import networkx as nx
 import logging
-from collections import defaultdict
 import traceback
-
-class JavaTDG:
-    def __init__(self):
-        self.graph = nx.DiGraph()
-        self.classnames = set()
-
-    def add_node(self, node_id, node_type, name, nullable=False, actual_type=None):
-        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable, 'actual_type': actual_type})
-        logging.debug(f"Added node {node_id} with attributes {self.graph.nodes[node_id]['attr']}")
-
-    def add_edge(self, from_node, to_node, edge_type):
-        self.graph.add_edge(from_node, to_node, type=edge_type)
-
-    def add_classname(self, classname):
-        self.classnames.add(classname)
+from tdg_utils import JavaTDG
 
 def get_parent_id(file_name, parent):
     if parent is None:
@@ -42,7 +26,7 @@ def get_actual_type(node):
         return node.type.name
     return None
 
-def process_file(file_path, tdg):
+def process_file(file_path, output_dir):
     try:
         with open(file_path, 'r') as file:
             content = file.read()
@@ -50,6 +34,7 @@ def process_file(file_path, tdg):
         file_name = os.path.basename(file_path)
         logging.info(f"Processing file {file_path}")
 
+        tdg = JavaTDG()
         file_id = file_name
         tdg.add_node(file_id, "file", file_name)
 
@@ -103,6 +88,9 @@ def process_file(file_path, tdg):
                     parent_id = get_parent_id(file_name, parent)
                     if parent_id:
                         tdg.add_edge(parent_id, null_id, "contains")
+        
+        output_path = os.path.join(output_dir, f"{file_name}.json")
+        save_tdg_to_json(tdg, output_path)
     except javalang.parser.JavaSyntaxError as e:
         logging.error(f"Syntax error in file {file_path}: {e}")
     except Exception as e:
@@ -128,8 +116,4 @@ if __name__ == "__main__":
     for root, _, files in os.walk(project_dir):
         for file in files:
             if file.endswith('.java'):
-                tdg = JavaTDG()
-                process_file(os.path.join(root, file), tdg)
-                output_path = os.path.join(output_dir, f"{file}.json")
-                save_tdg_to_json(tdg, output_path)
-
+                process_file(os.path.join(root, file), output_dir)

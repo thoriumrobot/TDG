@@ -2,28 +2,12 @@ import os
 import sys
 import json
 import javalang
-import networkx as nx
 import numpy as np
 from tensorflow.keras.models import load_model
 import logging
-from collections import defaultdict
-import tensorflow as tf
 import traceback
-
-class JavaTDG:
-    def __init__(self):
-        self.graph = nx.DiGraph()
-        self.classnames = set()
-
-    def add_node(self, node_id, node_type, name, nullable=False, actual_type=None):
-        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable, 'actual_type': actual_type})
-        logging.debug(f"Added node {node_id} with attributes {self.graph.nodes[node_id]['attr']}")
-
-    def add_edge(self, from_node, to_node, edge_type):
-        self.graph.add_edge(from_node, to_node, type=edge_type)
-
-    def add_classname(self, classname):
-        self.classnames.add(classname)
+import tensorflow as tf
+from tdg_utils import JavaTDG, f1_score, preprocess_tdg, create_tf_dataset
 
 def get_parent_id(file_name, parent):
     if parent is None:
@@ -106,36 +90,6 @@ def process_file(file_path, tdg):
         logging.error(f"Error processing file {file_path}: {e}")
         logging.error(traceback.format_exc())
 
-def extract_features(attr):
-    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
-    name_mapping = defaultdict(lambda: len(name_mapping))
-    type_name_mapping = defaultdict(lambda: len(type_name_mapping))
-
-    node_type = attr.get('type', '')
-    node_name = attr.get('name', '')
-    actual_type = attr.get('actual_type', '')
-    nullable = float(attr.get('nullable', 0))
-
-    type_id = type_mapping.get(node_type, len(type_mapping))
-    name_id = name_mapping[node_name]
-    type_name_id = type_name_mapping[actual_type]
-
-    return [float(type_id), float(name_id), float(type_name_id), nullable]
-
-def preprocess_tdg(tdg):
-    features = []
-    node_ids = []
-    for node in tdg.graph.nodes(data=True):
-        node_id, attr = node
-        if 'attr' in attr and attr['attr']['type'] in ['method', 'field', 'parameter']:
-            feature_vector = extract_features(attr['attr'])
-            features.append(feature_vector)
-            node_ids.append(node_id)
-        else:
-            logging.warning(f"Node {node_id} is missing 'attr' attribute or not relevant for prediction")
-    logging.info(f"Extracted {len(features)} features from TDG")
-    return np.array(features), node_ids
-
 def data_generator(file_list):
     for file_path in file_list:
         tdg = JavaTDG()
@@ -143,17 +97,6 @@ def data_generator(file_list):
         features, node_ids = preprocess_tdg(tdg)
         for feature, node_id in zip(features, node_ids):
             yield feature, node_id
-
-def create_tf_dataset(file_list, batch_size):
-    dataset = tf.data.Dataset.from_generator(
-        lambda: data_generator(file_list),
-        output_signature=(
-            tf.TensorSpec(shape=(None,), dtype=tf.float32),
-            tf.TensorSpec(shape=(), dtype=tf.string),
-        )
-    )
-    dataset = dataset.batch(batch_size)
-    return dataset
 
 def annotate_file(file_path, annotations):
     with open(file_path, 'r') as file:
@@ -201,7 +144,7 @@ def process_project(project_dir, model, batch_size):
     logging.info(f"Annotation complete for project {project_dir}")
 
 def main(project_dir, model_path, output_dir, batch_size):
-    model = load_model(model_path)
+    model = load_model(model_path, custom_objects={'f1_score': f1_score})
     
     for subdir in os.listdir(project_dir):
         subdir_path = os.path.join(project_dir, subdir)
@@ -223,4 +166,3 @@ if __name__ == "__main__":
     batch_size = 32
 
     main(project_dir, model_path, output_dir, batch_size)
-
