@@ -6,6 +6,8 @@ import tensorflow as tf
 import numpy as np
 import random
 import logging
+import javalang
+import traceback
 
 class JavaTDG:
     def __init__(self):
@@ -113,3 +115,83 @@ def create_tf_dataset(file_list, batch_size):
     )
     dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
     return dataset
+
+def process_file(file_path, tdg):
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read()
+        if not content.strip():
+            logging.warning(f"File {file_path} is empty, skipping.")
+            return
+
+        tree = javalang.parse.parse(content)
+        file_name = os.path.basename(file_path)
+        logging.info(f"Processing file {file_path}")
+
+        file_id = file_name
+        tdg.add_node(file_id, "file", file_name)
+
+        for path, node in tree:
+            if isinstance(node, javalang.tree.ClassDeclaration):
+                class_id = f"{file_name}.{node.name}"
+                tdg.add_node(class_id, "class", node.name)
+                tdg.add_classname(node.name)
+                tdg.add_edge(file_id, class_id, "contains")
+                for method in node.methods:
+                    method_id = f"{class_id}.{method.name}()"
+                    tdg.add_node(method_id, "method", method.name)
+                    tdg.add_edge(class_id, method_id, "contains")
+                    for param in method.parameters:
+                        param_id = f"{method_id}.{param.name}"
+                        actual_type = get_actual_type(param)
+                        tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
+                        tdg.add_edge(method_id, param_id, "has_parameter")
+                for field in node.fields:
+                    for decl in field.declarators:
+                        field_id = f"{class_id}.{decl.name}"
+                        actual_type = get_actual_type(decl)
+                        tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
+                        tdg.add_edge(class_id, field_id, "has_field")
+            elif isinstance(node, javalang.tree.MethodDeclaration):
+                method_id = f"{file_name}.{node.name}()"
+                tdg.add_node(method_id, "method", node.name)
+                for param in node.parameters:
+                    param_id = f"{method_id}.{param.name}"
+                    actual_type = get_actual_type(param)
+                    tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
+                    tdg.add_edge(method_id, param_id, "has_parameter")
+            elif isinstance(node, javalang.tree.FieldDeclaration):
+                for decl in node.declarators:
+                    field_id = f"{file_name}.{decl.name}"
+                    actual_type = get_actual_type(decl)
+                    tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
+                    tdg.add_edge(file_name, field_id, "has_field")
+            elif isinstance(node, javalang.tree.VariableDeclarator):
+                var_id = f"{file_name}.{node.name}"
+                actual_type = get_actual_type(node)
+                tdg.add_node(var_id, "variable", node.name, actual_type=actual_type)
+            elif isinstance(node, javalang.tree.Literal) and node.value == "null":
+                if node.position:
+                    null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
+                    tdg.add_node(null_id, "literal", "null")
+                    parent = path[-2] if len(path) > 1 else None
+                    parent_id = get_parent_id(file_name, parent)
+                    if parent_id:
+                        tdg.add_edge(parent_id, null_id, "contains")
+    except javalang.parser.JavaSyntaxError as e:
+        logging.error(f"Syntax error in file {file_path}: {e}")
+    except Exception as e:
+        logging.error(f"Error processing file {file_path}: {e}")
+        logging.error(traceback.format_exc())
+
+def get_parent_id(file_name, parent):
+    if parent is None:
+        return None
+    if hasattr(parent, 'name'):
+        return f"{file_name}.{parent.name}"
+    if isinstance(parent, javalang.tree.MethodInvocation):
+        return f"{file_name}.{parent.member}"
+    if isinstance(parent, javalang.tree.Assignment):
+        if parent.position:
+            return f"{file_name}.assignment_{parent.position.line}_{parent.position.column}"
+    return None

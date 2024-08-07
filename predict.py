@@ -8,18 +8,6 @@ import traceback
 import tensorflow as tf
 from tdg_utils import JavaTDG, f1_score, preprocess_tdg, create_tf_dataset, process_file
 
-def get_parent_id(file_name, parent):
-    if parent is None:
-        return None
-    if hasattr(parent, 'name'):
-        return f"{file_name}.{parent.name}"
-    if isinstance(parent, javalang.tree.MethodInvocation):
-        return f"{file_name}.{parent.member}"
-    if isinstance(parent, javalang.tree.Assignment):
-        if parent.position:
-            return f"{file_name}.assignment_{parent.position.line}_{parent.position.column}"
-    return None
-
 def annotate_file(file_path, annotations):
     with open(file_path, 'r') as file:
         lines = file.readlines()
