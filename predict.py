@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import javalang
 import numpy as np
 from tensorflow.keras.models import load_model
@@ -30,6 +29,10 @@ def process_file(file_path, tdg):
     try:
         with open(file_path, 'r') as file:
             content = file.read()
+        if not content.strip():
+            logging.warning(f"File {file_path} is empty, skipping.")
+            return
+
         tree = javalang.parse.parse(content)
         file_name = os.path.basename(file_path)
         logging.info(f"Processing file {file_path}")
@@ -91,12 +94,23 @@ def process_file(file_path, tdg):
         logging.error(traceback.format_exc())
 
 def data_generator(file_list):
+    tdg = JavaTDG()
     for file_path in file_list:
-        tdg = JavaTDG()
         process_file(file_path, tdg)
-        features, node_ids = preprocess_tdg(tdg)
-        for feature, node_id in zip(features, node_ids):
-            yield feature, node_id
+    features, node_ids = preprocess_tdg(tdg)
+    for feature, node_id in zip(features, node_ids):
+        yield feature, node_id
+
+def create_tf_dataset(file_list, batch_size):
+    dataset = tf.data.Dataset.from_generator(
+        lambda: data_generator(file_list),
+        output_signature=(
+            tf.TensorSpec(shape=(4,), dtype=tf.float32),
+            tf.TensorSpec(shape=(), dtype=tf.string),  # Use string for node_id to keep full identifier
+        )
+    )
+    dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
+    return dataset
 
 def annotate_file(file_path, annotations):
     with open(file_path, 'r') as file:
@@ -112,7 +126,7 @@ def annotate_file(file_path, annotations):
     with open(file_path, 'w') as file:
         file.writelines(lines)
 
-def process_project(project_dir, model, batch_size):
+def process_project(project_dir, output_dir, model, batch_size):
     file_list = [os.path.join(root, file)
                  for root, _, files in os.walk(project_dir)
                  for file in files if file.endswith('.java')]
@@ -137,9 +151,12 @@ def process_project(project_dir, model, batch_size):
                 annotations.append((file_name, line_num, col_num))
 
     for file_name in set([ann[0] for ann in annotations]):
-        file_path = os.path.join(project_dir, file_name)
+        input_file_path = os.path.join(project_dir, file_name)
+        output_file_path = os.path.join(output_dir, file_name)
+        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         file_annotations = [ann for ann in annotations if ann[0] == file_name]
-        annotate_file(file_path, file_annotations)
+        annotate_file(input_file_path, file_annotations)
+        os.rename(input_file_path, output_file_path)  # Move the annotated file to the output directory
     
     logging.info(f"Annotation complete for project {project_dir}")
 
@@ -151,7 +168,7 @@ def main(project_dir, model_path, output_dir, batch_size):
         if os.path.isdir(subdir_path):
             output_subdir = os.path.join(output_dir, subdir)
             os.makedirs(output_subdir, exist_ok=True)
-            process_project(subdir_path, model, batch_size)
+            process_project(subdir_path, output_subdir, model, batch_size)
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
