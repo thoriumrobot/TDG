@@ -27,23 +27,30 @@ def process_project(project_dir, output_dir, model, batch_size):
                  for file in files if file.endswith('.java')]
     
     dataset = create_tf_dataset(file_list, batch_size)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     annotations = []
-    for batch in dataset:
-        features, labels, node_ids = batch
-        batch_predictions = model.predict(features)
-        for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
-            if prediction > 0.5:  # Assuming a threshold of 0.5 for @Nullable annotation
-                node_info = node_id.decode('utf-8').split('.')
-                file_name = node_info[0]
-                try:
-                    line_num = int(node_info[1])
-                except ValueError:
-                    logging.warning(f"Invalid line number in node_id {node_id} for project {project_dir}. Skipping annotation.")
-                    continue
-                col_num = 0
+    iterator = iter(dataset)
+    
+    try:
+        while True:
+            batch = next(iterator)
+            features, labels, node_ids = batch
+            batch_predictions = model.predict(features)
+            for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
+                if prediction > 0.5:  # Assuming a threshold of 0.5 for @Nullable annotation
+                    node_info = node_id.decode('utf-8').split('.')
+                    file_name = node_info[0]
+                    try:
+                        line_num = int(node_info[1])
+                    except ValueError:
+                        logging.warning(f"Invalid line number in node_id {node_id} for project {project_dir}. Skipping annotation.")
+                        continue
+                    col_num = 0
 
-                annotations.append((file_name, line_num, col_num))
+                    annotations.append((file_name, line_num, col_num))
+    except StopIteration:
+        pass
 
     for file_name in set([ann[0] for ann in annotations]):
         input_file_path = os.path.join(project_dir, file_name)
@@ -51,7 +58,6 @@ def process_project(project_dir, output_dir, model, batch_size):
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         file_annotations = [ann for ann in annotations if ann[0] == file_name]
         annotate_file(input_file_path, file_annotations, output_file_path)
-        os.rename(input_file_path, output_file_path)  # Move the annotated file to the output directory
     
     logging.info(f"Annotation complete for project {project_dir}")
 
