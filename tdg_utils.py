@@ -3,9 +3,9 @@ import networkx as nx
 from collections import defaultdict
 from tensorflow.keras import backend as K
 import tensorflow as tf
-import numpy as np  # Ensure this import is included
+import numpy as np
 import random
-import logging  # Add logging to capture issues
+import logging
 
 class JavaTDG:
     def __init__(self):
@@ -57,13 +57,15 @@ def extract_features(attr):
 def preprocess_tdg(tdg):
     features = []
     labels = []
+    node_ids = []
     for node_id, attr in tdg.graph.nodes(data='attr'):
         if attr and attr.get('type') in ['method', 'field', 'parameter']:
             feature_vector = extract_features(attr)
             label = float(attr.get('nullable', 0))
             features.append(feature_vector)
             labels.append(label)
-    return np.array(features), np.array(labels)
+            node_ids.append(node_id)
+    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.str)
 
 def load_tdg_data(json_path):
     try:
@@ -74,7 +76,7 @@ def load_tdg_data(json_path):
         return preprocess_tdg(tdg)
     except json.JSONDecodeError as e:
         logging.error(f"Error decoding JSON from {json_path}: {e}")
-        return np.array([]), np.array([])  # Return empty arrays if there's an error
+        return np.array([]), np.array([]), np.array([])  # Return empty arrays if there's an error
 
 def balance_dataset(features, labels):
     pos_indices = [i for i, label in enumerate(labels) if label == 1]
@@ -92,14 +94,13 @@ def balance_dataset(features, labels):
     return balanced_features, balanced_labels
 
 def data_generator(file_list):
+    tdg = JavaTDG()
     for file_path in file_list:
-        features, labels = load_tdg_data(file_path)
-        if features.size == 0 or labels.size == 0:  # Skip empty arrays
-            logging.warning(f"No valid data found in {file_path}, skipping.")
-            continue
-        features, labels = balance_dataset(features, labels)
-        for feature, label in zip(features, labels):
-            yield feature, label
+        process_file(file_path, tdg)
+    features, labels, node_ids = preprocess_tdg(tdg)
+    features, labels = balance_dataset(features, labels)
+    for feature, label, node_id in zip(features, labels, node_ids):
+        yield feature, label, node_id
 
 def create_tf_dataset(file_list, batch_size):
     dataset = tf.data.Dataset.from_generator(
@@ -107,6 +108,7 @@ def create_tf_dataset(file_list, batch_size):
         output_signature=(
             tf.TensorSpec(shape=(4,), dtype=tf.float32),
             tf.TensorSpec(shape=(), dtype=tf.float32),
+            tf.TensorSpec(shape=(), dtype=tf.string),  # Use string for node_id to keep full identifier
         )
     )
     dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
