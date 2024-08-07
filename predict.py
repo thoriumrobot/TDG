@@ -7,7 +7,7 @@ import traceback
 import tensorflow as tf
 from tdg_utils import JavaTDG, f1_score, preprocess_tdg, create_tf_dataset, process_file
 
-def annotate_file(file_path, annotations):
+def annotate_file(file_path, annotations, output_file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
     
@@ -18,7 +18,7 @@ def annotate_file(file_path, annotations):
         else:
             logging.warning(f"Line number {line_num} is out of range in file {file_path}")
     
-    with open(file_path, 'w') as file:
+    with open(output_file_path, 'w') as file:
         file.writelines(lines)
 
 def process_project(project_dir, output_dir, model, batch_size):
@@ -50,7 +50,7 @@ def process_project(project_dir, output_dir, model, batch_size):
         output_file_path = os.path.join(output_dir, file_name)
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         file_annotations = [ann for ann in annotations if ann[0] == file_name]
-        annotate_file(input_file_path, file_annotations)
+        annotate_file(input_file_path, file_annotations, output_file_path)
         os.rename(input_file_path, output_file_path)  # Move the annotated file to the output directory
     
     logging.info(f"Annotation complete for project {project_dir}")
