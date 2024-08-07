@@ -6,9 +6,9 @@ import tensorflow as tf
 import numpy as np
 import random
 import logging
+import os  # Import the os module
 import javalang
 import traceback
-import os
 
 class JavaTDG:
     def __init__(self):
@@ -116,6 +116,11 @@ def create_tf_dataset(file_list, batch_size):
     )
     dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
     return dataset
+
+def get_actual_type(node):
+    if hasattr(node, 'type') and hasattr(node.type, 'name'):
+        return node.type.name
+    return None
 
 def process_file(file_path, tdg):
     try:
