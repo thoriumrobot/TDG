@@ -116,6 +116,7 @@ def balance_dataset(features, labels):
     return balanced_features, balanced_labels
 
 def data_generator(file_list, balance=False, is_tdg=True):
+    #pdb.set_trace()
     if is_tdg:
         for file_path in file_list:
             features, labels, node_ids = load_tdg_data(file_path)
