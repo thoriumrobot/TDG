@@ -5,7 +5,9 @@ from tensorflow.keras.models import load_model
 import logging
 import traceback
 import tensorflow as tf
-from tdg_utils import f1_score, create_tf_dataset, process_java_file
+from tdg_utils import f1_score, create_tf_dataset, process_java_file, NodeIDMapper
+
+node_id_mapper = NodeIDMapper()  # Initialize the node ID mapper
 
 def annotate_file(file_path, annotations, output_file_path):
     with open(file_path, 'r') as file:
@@ -39,7 +41,8 @@ def process_project(project_dir, output_dir, model, batch_size):
             batch_predictions = model.predict(features)
             for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
                 if prediction > 0.5:  # Assuming a threshold of 0.5 for @Nullable annotation
-                    node_info = node_id.decode('utf-8').split('.')
+                    node_id = node_id_mapper.get_id(node_id)  # Retrieve the original node ID
+                    node_info = node_id.split('.')
                     file_name = node_info[0]
                     try:
                         line_num = int(node_info[1])

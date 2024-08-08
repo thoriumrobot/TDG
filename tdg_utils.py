@@ -42,6 +42,24 @@ def f1_score(y_true, y_pred):
     recall = recall(y_true, y_pred)
     return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
 
+class NodeIDMapper:
+    def __init__(self):
+        self.id_to_int = {}
+        self.int_to_id = {}
+        self.counter = 0
+
+    def get_int(self, node_id):
+        if node_id not in self.id_to_int:
+            self.id_to_int[node_id] = self.counter
+            self.int_to_id[self.counter] = node_id
+            self.counter += 1
+        return self.id_to_int[node_id]
+
+    def get_id(self, node_int):
+        return self.int_to_id.get(node_int, None)
+
+node_id_mapper = NodeIDMapper()
+
 def extract_features(attr):
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
@@ -68,7 +86,7 @@ def preprocess_tdg(tdg):
             label = float(attr.get('nullable', 0))
             features.append(feature_vector)
             labels.append(label)
-            node_ids.append(int(hash(node_id) % (10 ** 8)))  # Cast node_id to int
+            node_ids.append(node_id_mapper.get_int(node_id))  # Convert node_id to int using the mapper
     return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32)
 
 def load_tdg_data(json_path):

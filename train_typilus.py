@@ -7,7 +7,9 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 import logging
-from tdg_utils import load_tdg_data, f1_score, create_tf_dataset
+from tdg_utils import load_tdg_data, f1_score, create_tf_dataset, NodeIDMapper
+
+node_id_mapper = NodeIDMapper()  # Initialize the node ID mapper
 
 def build_model(input_dim):
     model = Sequential([
@@ -50,4 +52,4 @@ if __name__ == "__main__":
     model_output_path = sys.argv[2]
     batch_size = int(sys.argv[3])
 
-    main(json_output_dir, model_output_path, int(batch_size))
+    main(json_output_dir, model_output_path, batch_size)
