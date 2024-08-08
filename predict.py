@@ -40,7 +40,7 @@ def process_project(project_dir, output_dir, model, batch_size):
             features, labels, node_ids = batch
             batch_predictions = model.predict(features)
             for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
-                if prediction > 0.5:  # Assuming a threshold of 0.5 for @Nullable annotation
+                if prediction > 0:  # Assuming a threshold of 0 for @Nullable annotation
                     node_id = node_id_mapper.get_id(node_id)  # Retrieve the original node ID
                     node_info = node_id.split('.')
                     file_name = node_info[0]
