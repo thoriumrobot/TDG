@@ -68,8 +68,8 @@ def preprocess_tdg(tdg):
             label = float(attr.get('nullable', 0))
             features.append(feature_vector)
             labels.append(label)
-            node_ids.append(node_id)
-    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.str)
+            node_ids.append(int(hash(node_id) % (10 ** 8)))  # Cast node_id to int
+    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32)
 
 def load_tdg_data(json_path):
     try:
@@ -121,7 +121,7 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         output_signature=(
             tf.TensorSpec(shape=(4,), dtype=tf.float32),
             tf.TensorSpec(shape=(), dtype=tf.float32),
-            tf.TensorSpec(shape=(), dtype=tf.string),  # Use string for node_id to keep full identifier
+            tf.TensorSpec(shape=(), dtype=tf.int32),  # Use int32 for node_id
         )
     )
     dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
