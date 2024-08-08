@@ -27,8 +27,8 @@ def main(json_output_dir, model_output_path, batch_size):
     file_list = [os.path.join(json_output_dir, file) for file in os.listdir(json_output_dir) if file.endswith('.json')]
     train_files, val_files = train_test_split(file_list, test_size=0.2, random_state=42)
 
-    train_dataset = create_tf_dataset(train_files, batch_size, balance=True)
-    val_dataset = create_tf_dataset(val_files, batch_size, balance=False)
+    train_dataset = create_tf_dataset(train_files, batch_size, balance=True, is_tdg=True)
+    val_dataset = create_tf_dataset(val_files, batch_size, balance=False, is_tdg=True)
 
     # Check the first batch to get the input dimension
     sample_feature, _, _ = next(iter(train_dataset))

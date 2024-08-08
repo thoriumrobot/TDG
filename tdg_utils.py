@@ -6,9 +6,10 @@ import tensorflow as tf
 import numpy as np
 import random
 import logging
-import os  # Import the os module
+import os
 import javalang
 import traceback
+import pdb
 
 class JavaTDG:
     def __init__(self):
@@ -96,19 +97,27 @@ def balance_dataset(features, labels):
     
     return balanced_features, balanced_labels
 
-def data_generator(file_list, balance=False):
-    tdg = JavaTDG()
-    for file_path in file_list:
-        process_file(file_path, tdg)
-    features, labels, node_ids = preprocess_tdg(tdg)
-    if balance:
-        features, labels = balance_dataset(features, labels)
-    for feature, label, node_id in zip(features, labels, node_ids):
-        yield feature, label, node_id
+def data_generator(file_list, balance=False, is_tdg=True):
+    if is_tdg:
+        for file_path in file_list:
+            features, labels, node_ids = load_tdg_data(file_path)
+            if balance:
+                features, labels = balance_dataset(features, labels)
+            for feature, label, node_id in zip(features, labels, node_ids):
+                yield feature, label, node_id
+    else:
+        tdg = JavaTDG()
+        for file_path in file_list:
+            process_java_file(file_path, tdg)
+        features, labels, node_ids = preprocess_tdg(tdg)
+        if balance:
+            features, labels = balance_dataset(features, labels)
+        for feature, label, node_id in zip(features, labels, node_ids):
+            yield feature, label, node_id
 
-def create_tf_dataset(file_list, batch_size, balance=False):
+def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     dataset = tf.data.Dataset.from_generator(
-        lambda: data_generator(file_list, balance),
+        lambda: data_generator(file_list, balance, is_tdg),
         output_signature=(
             tf.TensorSpec(shape=(4,), dtype=tf.float32),
             tf.TensorSpec(shape=(), dtype=tf.float32),
@@ -123,7 +132,7 @@ def get_actual_type(node):
         return node.type.name
     return None
 
-def process_file(file_path, tdg):
+def process_java_file(file_path, tdg):
     try:
         with open(file_path, 'r') as file:
             content = file.read()

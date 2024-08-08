@@ -5,7 +5,7 @@ from tensorflow.keras.models import load_model
 import logging
 import traceback
 import tensorflow as tf
-from tdg_utils import JavaTDG, f1_score, preprocess_tdg, create_tf_dataset, process_file
+from tdg_utils import f1_score, create_tf_dataset, process_java_file
 
 def annotate_file(file_path, annotations, output_file_path):
     with open(file_path, 'r') as file:
@@ -26,7 +26,7 @@ def process_project(project_dir, output_dir, model, batch_size):
                  for root, _, files in os.walk(project_dir)
                  for file in files if file.endswith('.java')]
     
-    dataset = create_tf_dataset(file_list, batch_size, balance=False)
+    dataset = create_tf_dataset(file_list, batch_size, balance=False, is_tdg=False)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     annotations = []
