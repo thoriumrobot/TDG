@@ -96,18 +96,19 @@ def balance_dataset(features, labels):
     
     return balanced_features, balanced_labels
 
-def data_generator(file_list):
+def data_generator(file_list, balance=False):
     tdg = JavaTDG()
     for file_path in file_list:
         process_file(file_path, tdg)
     features, labels, node_ids = preprocess_tdg(tdg)
-    features, labels = balance_dataset(features, labels)
+    if balance:
+        features, labels = balance_dataset(features, labels)
     for feature, label, node_id in zip(features, labels, node_ids):
         yield feature, label, node_id
 
-def create_tf_dataset(file_list, batch_size):
+def create_tf_dataset(file_list, batch_size, balance=False):
     dataset = tf.data.Dataset.from_generator(
-        lambda: data_generator(file_list),
+        lambda: data_generator(file_list, balance),
         output_signature=(
             tf.TensorSpec(shape=(4,), dtype=tf.float32),
             tf.TensorSpec(shape=(), dtype=tf.float32),

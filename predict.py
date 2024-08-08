@@ -26,7 +26,7 @@ def process_project(project_dir, output_dir, model, batch_size):
                  for root, _, files in os.walk(project_dir)
                  for file in files if file.endswith('.java')]
     
-    dataset = create_tf_dataset(file_list, batch_size)
+    dataset = create_tf_dataset(file_list, batch_size, balance=False)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     annotations = []
