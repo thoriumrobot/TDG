@@ -16,8 +16,8 @@ class JavaTDG:
         self.graph = nx.DiGraph()
         self.classnames = set()
 
-    def add_node(self, node_id, node_type, name, nullable=False, actual_type=None):
-        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'nullable': nullable, 'actual_type': actual_type})
+    def add_node(self, node_id, node_type, name, line_number=None, nullable=False, actual_type=None):
+        self.graph.add_node(node_id, attr={'type': node_type, 'name': name, 'line_number': line_number, 'nullable': nullable, 'actual_type': actual_type})
 
     def add_edge(self, from_node, to_node, edge_type):
         self.graph.add_edge(from_node, to_node, type=edge_type)
@@ -80,6 +80,8 @@ def preprocess_tdg(tdg):
     features = []
     labels = []
     node_ids = []
+    edges = []  # Store edges
+
     for node_id, attr in tdg.graph.nodes(data='attr'):
         if attr and attr.get('type') in ['method', 'field', 'parameter']:
             feature_vector = extract_features(attr)
@@ -87,7 +89,14 @@ def preprocess_tdg(tdg):
             features.append(feature_vector)
             labels.append(label)
             node_ids.append(node_id_mapper.get_int(node_id))  # Convert node_id to int using the mapper
-    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32)
+    
+    # Store edges
+    for from_node, to_node in tdg.graph.edges():
+        from_id = node_id_mapper.get_int(from_node)
+        to_id = node_id_mapper.get_int(to_node)
+        edges.append((from_id, to_id))
+
+    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), np.array(edges, dtype=np.int32)
 
 def load_tdg_data(json_path):
     try:
@@ -116,23 +125,23 @@ def balance_dataset(features, labels):
     return balanced_features, balanced_labels
 
 def data_generator(file_list, balance=False, is_tdg=True):
-    #pdb.set_trace()
+    pdb.set_trace()
     if is_tdg:
         for file_path in file_list:
-            features, labels, node_ids = load_tdg_data(file_path)
+            features, labels, node_ids, edges = load_tdg_data(file_path)
             if balance:
                 features, labels = balance_dataset(features, labels)
             for feature, label, node_id in zip(features, labels, node_ids):
-                yield feature, label, node_id
+                yield feature, label, node_id, edges  # Include edges
     else:
         tdg = JavaTDG()
         for file_path in file_list:
             process_java_file(file_path, tdg)
-        features, labels, node_ids = preprocess_tdg(tdg)
+        features, labels, node_ids, edges = preprocess_tdg(tdg)
         if balance:
             features, labels = balance_dataset(features, labels)
         for feature, label, node_id in zip(features, labels, node_ids):
-            yield feature, label, node_id
+            yield feature, label, node_id, edges  # Include edges
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     dataset = tf.data.Dataset.from_generator(
@@ -140,7 +149,8 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         output_signature=(
             tf.TensorSpec(shape=(4,), dtype=tf.float32),
             tf.TensorSpec(shape=(), dtype=tf.float32),
-            tf.TensorSpec(shape=(), dtype=tf.int32),  # Use int32 for node_id
+            tf.TensorSpec(shape=(), dtype=tf.int32),  # Node ID
+            tf.TensorSpec(shape=(None, 2), dtype=tf.int32)  # Edges
         )
     )
     dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
@@ -169,46 +179,54 @@ def process_java_file(file_path, tdg):
         for path, node in tree:
             if isinstance(node, javalang.tree.ClassDeclaration):
                 class_id = f"{file_name}.{node.name}"
-                tdg.add_node(class_id, "class", node.name)
+                line_number = node.position.line if node.position else None
+                tdg.add_node(class_id, "class", node.name, line_number=line_number)
                 tdg.add_classname(node.name)
                 tdg.add_edge(file_id, class_id, "contains")
                 for method in node.methods:
                     method_id = f"{class_id}.{method.name}()"
-                    tdg.add_node(method_id, "method", method.name)
+                    line_number = method.position.line if method.position else None
+                    tdg.add_node(method_id, "method", method.name, line_number=line_number)
                     tdg.add_edge(class_id, method_id, "contains")
                     for param in method.parameters:
                         param_id = f"{method_id}.{param.name}"
+                        line_number = param.position.line if param.position else None
                         actual_type = get_actual_type(param)
-                        tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
+                        tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type)
                         tdg.add_edge(method_id, param_id, "has_parameter")
                 for field in node.fields:
                     for decl in field.declarators:
                         field_id = f"{class_id}.{decl.name}"
+                        line_number = decl.position.line if decl.position else None
                         actual_type = get_actual_type(decl)
-                        tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
+                        tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type)
                         tdg.add_edge(class_id, field_id, "has_field")
             elif isinstance(node, javalang.tree.MethodDeclaration):
                 method_id = f"{file_name}.{node.name}()"
-                tdg.add_node(method_id, "method", node.name)
+                line_number = node.position.line if node.position else None
+                tdg.add_node(method_id, "method", node.name, line_number=line_number)
                 for param in node.parameters:
                     param_id = f"{method_id}.{param.name}"
+                    line_number = param.position.line if param.position else None
                     actual_type = get_actual_type(param)
-                    tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
+                    tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type)
                     tdg.add_edge(method_id, param_id, "has_parameter")
             elif isinstance(node, javalang.tree.FieldDeclaration):
                 for decl in node.declarators:
                     field_id = f"{file_name}.{decl.name}"
+                    line_number = decl.position.line if decl.position else None
                     actual_type = get_actual_type(decl)
-                    tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
+                    tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type)
                     tdg.add_edge(file_name, field_id, "has_field")
             elif isinstance(node, javalang.tree.VariableDeclarator):
                 var_id = f"{file_name}.{node.name}"
+                line_number = node.position.line if node.position else None
                 actual_type = get_actual_type(node)
-                tdg.add_node(var_id, "variable", node.name, actual_type=actual_type)
+                tdg.add_node(var_id, "variable", node.name, line_number=line_number, actual_type=actual_type)
             elif isinstance(node, javalang.tree.Literal) and node.value == "null":
                 if node.position:
                     null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
-                    tdg.add_node(null_id, "literal", "null")
+                    tdg.add_node(null_id, "literal", "null", line_number=node.position.line)
                     parent = path[-2] if len(path) > 1 else None
                     parent_id = get_parent_id(file_name, parent)
                     if parent_id:

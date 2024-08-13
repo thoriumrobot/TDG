@@ -37,7 +37,7 @@ def process_project(project_dir, output_dir, model, batch_size):
     try:
         while True:
             batch = next(iterator)
-            features, labels, node_ids = batch
+            features, labels, node_ids, edges = batch  # Include edges
             batch_predictions = model.predict(features)
             for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
                 if prediction > 0:  # Assuming a threshold of 0 for @Nullable annotation
