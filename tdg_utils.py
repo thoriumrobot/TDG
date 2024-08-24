@@ -80,23 +80,55 @@ def preprocess_tdg(tdg):
     features = []
     labels = []
     node_ids = []
-    edges = []  # Store edges
+    valid_nodes = set(tdg.graph.nodes)
+    node_id_map = {node: idx for idx, node in enumerate(valid_nodes)}  # Map nodes to a continuous index range
+
+    num_valid_nodes = len(valid_nodes)
+    if num_valid_nodes == 0:
+        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1))  # Return minimal non-empty arrays
+
+    adjacency_matrix = np.zeros((num_valid_nodes, num_valid_nodes), dtype=np.float32)
 
     for node_id, attr in tdg.graph.nodes(data='attr'):
-        if attr and attr.get('type') in ['method', 'field', 'parameter']:
+        if node_id in valid_nodes and attr and attr.get('type') in ['method', 'field', 'parameter']:
             feature_vector = extract_features(attr)
             label = float(attr.get('nullable', 0))
             features.append(feature_vector)
+            node_index = node_id_map[node_id]  # Use the correct mapped index
             labels.append(label)
-            node_ids.append(node_id_mapper.get_int(node_id))  # Convert node_id to int using the mapper
-    
-    # Store edges
-    for from_node, to_node in tdg.graph.edges():
-        from_id = node_id_mapper.get_int(from_node)
-        to_id = node_id_mapper.get_int(to_node)
-        edges.append((from_id, to_id))
+            node_ids.append(node_index)
 
-    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), np.array(edges, dtype=np.int32)
+    for from_node, to_node in tdg.graph.edges():
+        if from_node in valid_nodes and to_node in valid_nodes:
+            from_id = node_id_map[from_node]
+            to_id = node_id_map[to_node]
+            adjacency_matrix[from_id, to_id] = 1.0
+
+    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix
+
+def data_generator(file_list, balance=False, is_tdg=True):
+    if is_tdg:
+        for file_path in file_list:
+            features, labels, node_ids, adjacency_matrix = load_tdg_data(file_path)
+            # Skip if the graph is empty or invalid
+            if features.size == 0 or adjacency_matrix.size == 0:
+                logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
+                continue
+            if balance:
+                features, labels = balance_dataset(features, labels)
+            yield features, labels, node_ids, adjacency_matrix
+    else:
+        tdg = JavaTDG()
+        for file_path in file_list:
+            process_java_file(file_path, tdg)
+            features, labels, node_ids, adjacency_matrix = preprocess_tdg(tdg)
+            # Skip if the graph is empty or invalid
+            if features.size == 0 or adjacency_matrix.size == 0:
+                logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
+                continue
+            if balance:
+                features, labels = balance_dataset(features, labels)
+            yield features, labels, node_ids, adjacency_matrix
 
 def load_tdg_data(json_path):
     try:
@@ -107,7 +139,7 @@ def load_tdg_data(json_path):
         return preprocess_tdg(tdg)
     except json.JSONDecodeError as e:
         logging.error(f"Error decoding JSON from {json_path}: {e}")
-        return np.array([]), np.array([]), np.array([])  # Return empty arrays if there's an error
+        return np.array([]), np.array([]), np.array([]), np.array([[]])  # Return empty arrays if there's an error
 
 def balance_dataset(features, labels):
     pos_indices = [i for i, label in enumerate(labels) if label == 1]
@@ -124,36 +156,52 @@ def balance_dataset(features, labels):
     
     return balanced_features, balanced_labels
 
-def data_generator(file_list, balance=False, is_tdg=True):
-    pdb.set_trace()
-    if is_tdg:
-        for file_path in file_list:
-            features, labels, node_ids, edges = load_tdg_data(file_path)
-            if balance:
-                features, labels = balance_dataset(features, labels)
-            for feature, label, node_id in zip(features, labels, node_ids):
-                yield feature, label, node_id, edges  # Include edges
-    else:
-        tdg = JavaTDG()
-        for file_path in file_list:
-            process_java_file(file_path, tdg)
-        features, labels, node_ids, edges = preprocess_tdg(tdg)
-        if balance:
-            features, labels = balance_dataset(features, labels)
-        for feature, label, node_id in zip(features, labels, node_ids):
-            yield feature, label, node_id, edges  # Include edges
+def pad_batch(features, labels, node_ids, adjacency_matrix):
+    # Find the maximum number of nodes in the batch
+    max_nodes = max([f.shape[0] for f in features])
+
+    # Pad node features
+    padded_features = np.array([np.pad(f, ((0, max_nodes - f.shape[0]), (0, 0)), mode='constant') for f in features])
+
+    # Pad adjacency matrices
+    padded_adj_matrix = np.array([np.pad(a, ((0, max_nodes - a.shape[0]), (0, max_nodes - a.shape[1])), mode='constant') for a in adjacency_matrix])
+
+    # Ensure the node IDs are padded as well (if necessary)
+    padded_node_ids = np.array([np.pad(nid, (0, max_nodes - len(nid)), mode='constant') for nid in node_ids])
+
+    return padded_features, labels, padded_node_ids, padded_adj_matrix
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
+    def generator():
+        for features, labels, node_ids, adjacency_matrix in data_generator(file_list, balance, is_tdg):
+            if features.size > 0 and adjacency_matrix.size > 0:
+                yield features, labels, node_ids, adjacency_matrix
+
     dataset = tf.data.Dataset.from_generator(
-        lambda: data_generator(file_list, balance, is_tdg),
+        generator,
         output_signature=(
-            tf.TensorSpec(shape=(4,), dtype=tf.float32),
-            tf.TensorSpec(shape=(), dtype=tf.float32),
-            tf.TensorSpec(shape=(), dtype=tf.int32),  # Node ID
-            tf.TensorSpec(shape=(None, 2), dtype=tf.int32)  # Edges
+            tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features
+            tf.TensorSpec(shape=(None,), dtype=tf.float32),    # Labels
+            tf.TensorSpec(shape=(None,), dtype=tf.int32),      # Node IDs
+            tf.TensorSpec(shape=(None, None), dtype=tf.float32)  # Adjacency matrix
         )
     )
-    dataset = dataset.shuffle(buffer_size=10000).batch(batch_size)
+
+    dataset = dataset.shuffle(buffer_size=10000).padded_batch(
+        batch_size, 
+        padded_shapes=(
+            tf.TensorShape([None, None]),  # Node features
+            tf.TensorShape([None]),        # Labels
+            tf.TensorShape([None]),        # Node IDs
+            tf.TensorShape([None, None])   # Adjacency matrix
+        ),
+        padding_values=(
+            tf.constant(0.0),  # Padding value for features
+            tf.constant(0.0),  # Padding value for labels
+            tf.constant(0),    # Padding value for node_ids
+            tf.constant(0.0)   # Padding value for adjacency matrix
+        )
+    )
     return dataset
 
 def get_actual_type(node):

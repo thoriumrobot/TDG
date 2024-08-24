@@ -42,49 +42,57 @@ def process_file(file_path, output_dir):
         for path, node in tree:
             if isinstance(node, javalang.tree.ClassDeclaration):
                 class_id = f"{file_name}.{node.name}"
-                tdg.add_node(class_id, "class", node.name)
+                line_number = node.position.line if node.position else None
+                tdg.add_node(class_id, "class", node.name, line_number=line_number)
                 tdg.add_classname(node.name)
                 tdg.add_edge(file_id, class_id, "contains")
                 for method in node.methods:
                     method_id = f"{class_id}.{method.name}()"
+                    line_number = method.position.line if method.position else None
                     nullable = has_nullable_annotation(method.annotations)
-                    tdg.add_node(method_id, "method", method.name, nullable=nullable)
+                    tdg.add_node(method_id, "method", method.name, line_number=line_number, nullable=nullable)
                     tdg.add_edge(class_id, method_id, "contains")
                     for param in method.parameters:
                         param_id = f"{method_id}.{param.name}"
+                        line_number = param.position.line if param.position else None
                         nullable = has_nullable_annotation(param.annotations)
                         actual_type = get_actual_type(param)
-                        tdg.add_node(param_id, "parameter", param.name, nullable=nullable, actual_type=actual_type)
+                        tdg.add_node(param_id, "parameter", param.name, line_number=line_number, nullable=nullable, actual_type=actual_type)
                         tdg.add_edge(method_id, param_id, "has_parameter")
                 for field in node.fields:
                     for decl in field.declarators:
                         field_id = f"{class_id}.{decl.name}"
+                        line_number = decl.position.line if decl.position else None
                         nullable = has_nullable_annotation(field.annotations)
                         actual_type = get_actual_type(decl)
-                        tdg.add_node(field_id, "field", decl.name, nullable=nullable, actual_type=actual_type)
+                        tdg.add_node(field_id, "field", decl.name, line_number=line_number, nullable=nullable, actual_type=actual_type)
                         tdg.add_edge(class_id, field_id, "has_field")
             elif isinstance(node, javalang.tree.MethodDeclaration):
                 method_id = f"{file_name}.{node.name}()"
-                tdg.add_node(method_id, "method", node.name)
+                line_number = node.position.line if node.position else None
+                tdg.add_node(method_id, "method", node.name, line_number=line_number)
                 for param in node.parameters:
                     param_id = f"{method_id}.{param.name}"
+                    line_number = param.position.line if param.position else None
                     actual_type = get_actual_type(param)
-                    tdg.add_node(param_id, "parameter", param.name, actual_type=actual_type)
+                    tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type)
                     tdg.add_edge(method_id, param_id, "has_parameter")
             elif isinstance(node, javalang.tree.FieldDeclaration):
                 for decl in node.declarators:
                     field_id = f"{file_name}.{decl.name}"
+                    line_number = decl.position.line if decl.position else None
                     actual_type = get_actual_type(decl)
-                    tdg.add_node(field_id, "field", decl.name, actual_type=actual_type)
+                    tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type)
                     tdg.add_edge(file_name, field_id, "has_field")
             elif isinstance(node, javalang.tree.VariableDeclarator):
                 var_id = f"{file_name}.{node.name}"
+                line_number = node.position.line if node.position else None
                 actual_type = get_actual_type(node)
-                tdg.add_node(var_id, "variable", node.name, actual_type=actual_type)
+                tdg.add_node(var_id, "variable", node.name, line_number=line_number, actual_type=actual_type)
             elif isinstance(node, javalang.tree.Literal) and node.value == "null":
                 if node.position:
                     null_id = f"{file_name}.null_{node.position.line}_{node.position.column}"
-                    tdg.add_node(null_id, "literal", "null")
+                    tdg.add_node(null_id, "literal", "null", line_number=node.position.line)
                     parent = path[-2] if len(path) > 1 else None
                     parent_id = get_parent_id(file_name, parent)
                     if parent_id:

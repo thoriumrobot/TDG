@@ -1,1 +1,1 @@
-{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src8628.java", "nullable": false, "actual_type": null}, "id": "src8628.java"}], "links": []}
+{"directed": true, "multigraph": false, "graph": {}, "nodes": [{"attr": {"type": "file", "name": "src8628.java", "line_number": null, "nullable": false, "actual_type": null}, "id": "src8628.java"}], "links": []}

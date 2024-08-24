@@ -2,4 +2,4 @@ javalang
 networkx
 tensorflow
 scikit-learn
-
+spektral

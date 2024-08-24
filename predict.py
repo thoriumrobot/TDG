@@ -37,8 +37,8 @@ def process_project(project_dir, output_dir, model, batch_size):
     try:
         while True:
             batch = next(iterator)
-            features, labels, node_ids, edges = batch  # Include edges
-            batch_predictions = model.predict(features)
+            features, labels, node_ids, adjacency_matrix = batch  # Include adjacency_matrix
+            batch_predictions = model.predict([features, adjacency_matrix])
             for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
                 if prediction > 0:  # Assuming a threshold of 0 for @Nullable annotation
                     node_id = node_id_mapper.get_id(node_id)  # Retrieve the original node ID

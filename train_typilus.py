@@ -1,28 +1,38 @@
 import os
 import sys
-import json
 import numpy as np
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Dropout
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from spektral.layers import GCNConv, GlobalSumPool
+import tensorflow as tf
 import logging
-from tdg_utils import load_tdg_data, f1_score, create_tf_dataset, NodeIDMapper, node_id_mapper
+from tdg_utils import load_tdg_data, f1_score, create_tf_dataset
 
-#node_id_mapper = NodeIDMapper()  # Initialize the node ID mapper
+def build_gnn_model(input_dim):
+    # Define the input layers
+    node_features_input = Input(shape=(None, input_dim))  # Shape: (batch_size, num_nodes, num_features)
+    adj_input = Input(shape=(None, None))  # Shape: (batch_size, num_nodes, num_nodes)
 
-def build_model(input_dim):
-    model = Sequential([
-        Input(shape=(input_dim,)),
-        Dense(128, activation='relu'),
-        Dropout(0.5),
-        Dense(64, activation='relu'),
-        Dropout(0.5),
-        Dense(32, activation='relu'),
-        Dropout(0.5),
-        Dense(1, activation='sigmoid')
-    ])
+    # Apply GCN layers
+    x = GCNConv(128, activation='relu')([node_features_input, adj_input])
+    x = Dropout(0.5)(x)
+    x = GCNConv(64, activation='relu')([x, adj_input])
+    x = Dropout(0.5)(x)
+
+    # Pooling to get a single vector for the entire graph
+    x = GlobalSumPool()(x)
+
+    # Dense layers for final prediction
+    x = Dense(32, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    output = Dense(1, activation='sigmoid')(x)
+
+    # Define the model
+    model = Model(inputs=[node_features_input, adj_input], outputs=output)
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy', f1_score])
+
     return model
 
 def main(json_output_dir, model_output_path, batch_size):
@@ -33,10 +43,10 @@ def main(json_output_dir, model_output_path, batch_size):
     val_dataset = create_tf_dataset(val_files, batch_size, balance=False, is_tdg=True)
 
     # Check the first batch to get the input dimension
-    sample_feature, _, _ = next(iter(train_dataset))
+    sample_feature, _, _, _ = next(iter(train_dataset))
     input_dim = sample_feature.shape[-1]
 
-    model = build_model(input_dim)
+    model = build_gnn_model(input_dim)
     checkpoint = ModelCheckpoint(model_output_path, monitor='val_f1_score', save_best_only=True, mode='max')
     early_stopping = EarlyStopping(monitor='val_f1_score', patience=10, mode='max')
 
