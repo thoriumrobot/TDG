@@ -23,38 +23,46 @@ def annotate_file(file_path, annotations, output_file_path):
     with open(output_file_path, 'w') as file:
         file.writelines(lines)
 
+def create_combined_tdg(file_list):
+    combined_tdg = JavaTDG()
+    for file_path in file_list:
+        process_java_file(file_path, combined_tdg)
+    return combined_tdg
+
 def process_project(project_dir, output_dir, model, batch_size):
     file_list = [os.path.join(root, file)
                  for root, _, files in os.walk(project_dir)
                  for file in files if file.endswith('.java')]
+
+    combined_tdg = create_combined_tdg(file_list)
+    features, labels, node_ids, adjacency_matrix = preprocess_tdg(combined_tdg)
+
+    if features.size == 0 or adjacency_matrix.size == 0:
+        logging.warning(f"No valid TDG created for project {project_dir}. Skipping.")
+        return
     
-    dataset = create_tf_dataset(file_list, batch_size, balance=False, is_tdg=False)
+    dataset = tf.data.Dataset.from_tensor_slices((features, labels, node_ids, adjacency_matrix)).batch(batch_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     annotations = []
-    iterator = iter(dataset)
+
+    for batch in dataset:
+        features, labels, node_ids, adjacency_matrix = batch
+        batch_predictions = model.predict([features, adjacency_matrix])
+        for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
+            if prediction > 0:  # Assuming a threshold of 0 for @Nullable annotation
+                node_id = node_id_mapper.get_id(node_id)
+                node_info = node_id.split('.')
+                file_name = node_info[0]
+                try:
+                    line_num = int(node_info[1])
+                except ValueError:
+                    logging.warning(f"Invalid line number in node_id {node_id} for project {project_dir}. Skipping annotation.")
+                    continue
+                col_num = 0
+
+                annotations.append((file_name, line_num, col_num))
     
-    try:
-        while True:
-            batch = next(iterator)
-            features, labels, node_ids, adjacency_matrix = batch  # Include adjacency_matrix
-            batch_predictions = model.predict([features, adjacency_matrix])
-            for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
-                if prediction > 0:  # Assuming a threshold of 0 for @Nullable annotation
-                    node_id = node_id_mapper.get_id(node_id)  # Retrieve the original node ID
-                    node_info = node_id.split('.')
-                    file_name = node_info[0]
-                    try:
-                        line_num = int(node_info[1])
-                    except ValueError:
-                        logging.warning(f"Invalid line number in node_id {node_id} for project {project_dir}. Skipping annotation.")
-                        continue
-                    col_num = 0
-
-                    annotations.append((file_name, line_num, col_num))
-    except StopIteration:
-        pass
-
     for file_name in set([ann[0] for ann in annotations]):
         input_file_path = os.path.join(project_dir, file_name)
         output_file_path = os.path.join(output_dir, file_name)

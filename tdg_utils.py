@@ -81,11 +81,12 @@ def preprocess_tdg(tdg):
     labels = []
     node_ids = []
     valid_nodes = set(tdg.graph.nodes)
-    node_id_map = {node: idx for idx, node in enumerate(valid_nodes)}  # Map nodes to a continuous index range
+    node_id_map = {node: idx for idx, node in enumerate(valid_nodes)}
 
     num_valid_nodes = len(valid_nodes)
     if num_valid_nodes == 0:
-        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1))  # Return minimal non-empty arrays
+        # Ensure valid non-empty arrays with default values
+        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1))
 
     adjacency_matrix = np.zeros((num_valid_nodes, num_valid_nodes), dtype=np.float32)
 
@@ -94,7 +95,7 @@ def preprocess_tdg(tdg):
             feature_vector = extract_features(attr)
             label = float(attr.get('nullable', 0))
             features.append(feature_vector)
-            node_index = node_id_map[node_id]  # Use the correct mapped index
+            node_index = node_id_map[node_id]
             labels.append(label)
             node_ids.append(node_index)
 
@@ -115,7 +116,7 @@ def data_generator(file_list, balance=False, is_tdg=True):
                 logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
                 continue
             if balance:
-                features, labels = balance_dataset(features, labels)
+                features, labels, adjacency_matrix = balance_dataset(features, labels, adjacency_matrix)
             yield features, labels, node_ids, adjacency_matrix
     else:
         tdg = JavaTDG()
@@ -127,7 +128,7 @@ def data_generator(file_list, balance=False, is_tdg=True):
                 logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
                 continue
             if balance:
-                features, labels = balance_dataset(features, labels)
+                features, labels, adjacency_matrix = balance_dataset(features, labels, adjacency_matrix)
             yield features, labels, node_ids, adjacency_matrix
 
 def load_tdg_data(json_path):
@@ -139,22 +140,59 @@ def load_tdg_data(json_path):
         return preprocess_tdg(tdg)
     except json.JSONDecodeError as e:
         logging.error(f"Error decoding JSON from {json_path}: {e}")
-        return np.array([]), np.array([]), np.array([]), np.array([[]])  # Return empty arrays if there's an error
+        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1))  # Return default empty arrays if there's an error
+    except Exception as e:
+        logging.error(f"Error processing {json_path}: {e}")
+        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1))  # Handle other errors similarly
 
-def balance_dataset(features, labels):
+def balance_dataset(features, labels, adjacency_matrix):
     pos_indices = [i for i, label in enumerate(labels) if label == 1]
     neg_indices = [i for i, label in enumerate(labels) if label == 0]
-    
+
     random.shuffle(neg_indices)
     selected_neg_indices = neg_indices[:len(pos_indices)]
-    
+
     selected_indices = pos_indices + selected_neg_indices
     random.shuffle(selected_indices)
+
+    # Create subgraph with selected indices
+    selected_features = features[selected_indices]
+    selected_labels = labels[selected_indices]
+    selected_adjacency_matrix = adjacency_matrix[selected_indices, :][:, selected_indices]
+
+    # Renumber the nodes in the selected subgraph
+    selected_features, selected_labels, selected_node_ids, selected_adjacency_matrix = renumber_and_prune(selected_features, selected_labels, selected_adjacency_matrix)
+
+    return selected_features, selected_labels, selected_adjacency_matrix
+
+def renumber_and_prune(features, labels, adjacency_matrix):
+    """
+    Renumber nodes in a connected subgraph and prune any disconnected nodes.
+    """
+    # Convert adjacency matrix to a graph object
+    graph = nx.from_numpy_array(adjacency_matrix, create_using=nx.DiGraph)
     
-    balanced_features = np.array([features[i] for i in selected_indices])
-    balanced_labels = np.array([labels[i] for i in selected_indices])
-    
-    return balanced_features, balanced_labels
+    # Check if the graph is empty or has no connected components
+    if len(graph) == 0 or not list(nx.weakly_connected_components(graph)):
+        # Return empty arrays if the graph has no connected components
+        return np.array([]), np.array([]), np.array([]), np.array([[]])
+
+    # Find the largest connected component
+    largest_cc = max(nx.weakly_connected_components(graph), key=len)
+
+    # Create a mapping from old to new node IDs
+    old_to_new = {old_id: new_id for new_id, old_id in enumerate(largest_cc)}
+
+    # Apply mapping to the features, labels, and adjacency matrix
+    pruned_features = np.array([features[old_to_new[i]] for i in sorted(largest_cc)])
+    pruned_labels = np.array([labels[old_to_new[i]] for i in sorted(largest_cc)])
+    pruned_adjacency_matrix = np.zeros((len(largest_cc), len(largest_cc)))
+
+    for i, old_id in enumerate(sorted(largest_cc)):
+        for j, old_id2 in enumerate(sorted(largest_cc)):
+            pruned_adjacency_matrix[i, j] = adjacency_matrix[old_id, old_id2]
+
+    return pruned_features, pruned_labels, np.array(list(range(len(largest_cc)))), pruned_adjacency_matrix
 
 def pad_batch(features, labels, node_ids, adjacency_matrix):
     # Find the maximum number of nodes in the batch
@@ -175,34 +213,38 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
         for features, labels, node_ids, adjacency_matrix in data_generator(file_list, balance, is_tdg):
             if features.size > 0 and adjacency_matrix.size > 0:
-                yield features, labels, node_ids, adjacency_matrix
+                yield (features, adjacency_matrix), labels  # Only yield features (including adjacency) and labels
+            else:
+                yield (
+                    (np.zeros((1, 4), dtype=np.float32), np.zeros((1, 1), dtype=np.float32)),  # Features and adjacency
+                    np.zeros((1,), dtype=np.float32)  # Labels
+                )
 
+    # Set the shapes based on expected maximums, using dynamic dimensions
     dataset = tf.data.Dataset.from_generator(
         generator,
         output_signature=(
-            tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features
-            tf.TensorSpec(shape=(None,), dtype=tf.float32),    # Labels
-            tf.TensorSpec(shape=(None,), dtype=tf.int32),      # Node IDs
-            tf.TensorSpec(shape=(None, None), dtype=tf.float32)  # Adjacency matrix
+            (tf.TensorSpec(shape=(None, 4), dtype=tf.float32),    # Node features (None, 4)
+             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),  # Adjacency matrix (None, None)
+            tf.TensorSpec(shape=(None,), dtype=tf.float32)      # Labels (None,)
         )
     )
 
     dataset = dataset.shuffle(buffer_size=10000).padded_batch(
         batch_size, 
         padded_shapes=(
-            tf.TensorShape([None, None]),  # Node features
-            tf.TensorShape([None]),        # Labels
-            tf.TensorShape([None]),        # Node IDs
-            tf.TensorShape([None, None])   # Adjacency matrix
+            (tf.TensorShape([None, 4]),   # Node features
+             tf.TensorShape([None, None])), # Adjacency matrix
+            tf.TensorShape([None])      # Labels
         ),
         padding_values=(
-            tf.constant(0.0),  # Padding value for features
-            tf.constant(0.0),  # Padding value for labels
-            tf.constant(0),    # Padding value for node_ids
-            tf.constant(0.0)   # Padding value for adjacency matrix
+            (tf.constant(0.0),  # Padding value for features
+             tf.constant(0.0)),  # Padding value for adjacency matrix
+            tf.constant(0.0)   # Padding value for labels
         )
     )
     return dataset
+
 
 def get_actual_type(node):
     if hasattr(node, 'type') and hasattr(node.type, 'name'):
