@@ -117,7 +117,10 @@ def data_generator(file_list, balance=False, is_tdg=True):
                 continue
             if balance:
                 features, labels, adjacency_matrix = balance_dataset(features, labels, adjacency_matrix)
-            yield features, labels, node_ids, adjacency_matrix
+            padded_features, padded_labels, padded_node_ids, padded_adj_matrix = pad_batch(
+                [features], [labels], [node_ids], [adjacency_matrix]
+            )
+            yield padded_features[0], padded_labels[0], padded_node_ids[0], padded_adj_matrix[0]
     else:
         tdg = JavaTDG()
         for file_path in file_list:
@@ -129,7 +132,10 @@ def data_generator(file_list, balance=False, is_tdg=True):
                 continue
             if balance:
                 features, labels, adjacency_matrix = balance_dataset(features, labels, adjacency_matrix)
-            yield features, labels, node_ids, adjacency_matrix
+            padded_features, padded_labels, padded_node_ids, padded_adj_matrix = pad_batch(
+                [features], [labels], [node_ids], [adjacency_matrix]
+            )
+            yield padded_features[0], padded_labels[0], padded_node_ids[0], padded_adj_matrix[0]
 
 def load_tdg_data(json_path):
     try:
@@ -195,19 +201,35 @@ def renumber_and_prune(features, labels, adjacency_matrix):
     return pruned_features, pruned_labels, np.array(list(range(len(largest_cc)))), pruned_adjacency_matrix
 
 def pad_batch(features, labels, node_ids, adjacency_matrix):
+    # Check if features list is empty
+    if len(features) == 0:
+        raise ValueError("Features list is empty. Cannot pad batch.")
+    
     # Find the maximum number of nodes in the batch
     max_nodes = max([f.shape[0] for f in features])
+    max_node_ids_length = max([nid.shape[0] for nid in node_ids])
 
-    # Pad node features
-    padded_features = np.array([np.pad(f, ((0, max_nodes - f.shape[0]), (0, 0)), mode='constant') for f in features])
+    # Check if the first feature has at least two dimensions
+    if len(features[0].shape) < 2:
+        raise ValueError(f"Expected features to have at least 2 dimensions, but got {features[0].shape}")
 
-    # Pad adjacency matrices
-    padded_adj_matrix = np.array([np.pad(a, ((0, max_nodes - a.shape[0]), (0, max_nodes - a.shape[1])), mode='constant') for a in adjacency_matrix])
+    # Ensure that all feature vectors have consistent dimensions
+    padded_features = np.zeros((len(features), max_nodes, features[0].shape[1]), dtype=np.float32)
+    padded_adj_matrix = np.zeros((len(features), max_nodes, max_nodes), dtype=np.float32)
+    padded_node_ids = np.zeros((len(features), max_node_ids_length), dtype=np.int32)
 
-    # Ensure the node IDs are padded as well (if necessary)
-    padded_node_ids = np.array([np.pad(nid, (0, max_nodes - len(nid)), mode='constant') for nid in node_ids])
+    for i in range(len(features)):
+        # Pad features
+        padded_features[i, :features[i].shape[0], :] = features[i]
 
-    return padded_features, labels, padded_node_ids, padded_adj_matrix
+        # Pad adjacency matrices
+        adj_size = adjacency_matrix[i].shape[0]
+        padded_adj_matrix[i, :adj_size, :adj_size] = adjacency_matrix[i]
+
+        # Pad node IDs
+        padded_node_ids[i, :node_ids[i].shape[0]] = node_ids[i]
+
+    return padded_features, np.array(labels), padded_node_ids, padded_adj_matrix
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
@@ -244,7 +266,6 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         )
     )
     return dataset
-
 
 def get_actual_type(node):
     if hasattr(node, 'type') and hasattr(node.type, 'name'):
