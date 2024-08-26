@@ -158,7 +158,7 @@ def data_generator(file_list, batch_size, balance=False, is_tdg=True, max_nodes=
 
     # Accumulate and split graphs into batches of max_nodes
     for padded_features, padded_labels, padded_node_ids, padded_adj_matrix in accumulate_and_split_graphs(graphs, max_nodes):
-        yield (padded_features, padded_adj_matrix), padded_labels
+        yield padded_features, padded_labels, padded_node_ids, padded_adj_matrix #(padded_features, padded_adj_matrix), padded_labels
 
 def load_tdg_data(json_path):
     try:
