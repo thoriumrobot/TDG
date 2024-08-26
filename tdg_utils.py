@@ -334,8 +334,8 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         generator,
         output_signature=(
             (tf.TensorSpec(shape=(None, None, 4), dtype=tf.float32),  # Node features (None, None, 4)
-            tf.TensorSpec(shape=(None,), dtype=tf.float32)             # Labels (None,)
-             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),     # Adjacency matrix (None, None)
+            tf.TensorSpec(shape=(None,), dtype=tf.float32),             # Labels (None,)
+             tf.TensorSpec(shape=(None, None), dtype=tf.float32))     # Adjacency matrix (None, None)
         )
     )
 
@@ -343,13 +343,13 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         batch_size, 
         padded_shapes=(
             (tf.TensorShape([None, None, 4]),   # Node features
-            tf.TensorShape([None])              # Labels
-             tf.TensorShape([None, None])),     # Adjacency matrix
+            tf.TensorShape([None]),              # Labels
+             tf.TensorShape([None, None]))     # Adjacency matrix
         ),
         padding_values=(
             (tf.constant(0.0),  # Padding value for features
-            tf.constant(0.0)    # Padding value for labels
-             tf.constant(0.0)),  # Padding value for adjacency matrix
+            tf.constant(0.0),    # Padding value for labels
+             tf.constant(0.0))  # Padding value for adjacency matrix
         )
     )
     return dataset
