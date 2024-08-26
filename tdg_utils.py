@@ -129,7 +129,7 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
                 if balance:
                     features, labels, node_ids, adjacency_matrix = balance_dataset(features, labels, node_ids, adjacency_matrix)
                 
-                graphs.append((features, labels, node_ids, adjacency_matrix))
+                graphs.append((features, labels, adjacency_matrix))
             except Exception as e:
                 logging.error(f"Error processing graph in file {file_path}: {e}")
                 continue
@@ -151,14 +151,14 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
             if features.size == 0 or adjacency_matrix.size == 0:
                 logging.warning("The combined graph is empty or invalid.")
                 return
-            graphs.append((features, labels, node_ids, adjacency_matrix))
+            graphs.append((features, labels, adjacency_matrix))
         except Exception as e:
             logging.error(f"Error processing combined graph: {e}")
             return
 
     # Accumulate and split graphs into batches of max_nodes
     for padded_features, padded_labels, padded_node_ids, padded_adj_matrix in accumulate_and_split_graphs(graphs, max_nodes):
-        yield padded_features, padded_labels, padded_node_ids, padded_adj_matrix #(padded_features, padded_adj_matrix), padded_labels
+        yield padded_features, padded_labels, padded_adj_matrix #(padded_features, padded_adj_matrix), padded_labels
 
 def load_tdg_data(json_path):
     try:
@@ -320,7 +320,7 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, max_nodes):
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
-        for features, labels, node_ids, adjacency_matrix in data_generator(file_list, balance, is_tdg):
+        for features, labels, adjacency_matrix in data_generator(file_list, balance, is_tdg):
             if features.size > 0 and adjacency_matrix.size > 0:
                 yield (features, adjacency_matrix), labels  # Only yield features (including adjacency) and labels
             else:
@@ -334,8 +334,8 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         generator,
         output_signature=(
             (tf.TensorSpec(shape=(None, None, 4), dtype=tf.float32),  # Node features (None, None, 4)
-             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),     # Adjacency matrix (None, None)
             tf.TensorSpec(shape=(None,), dtype=tf.float32)             # Labels (None,)
+             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),     # Adjacency matrix (None, None)
         )
     )
 
@@ -343,13 +343,13 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         batch_size, 
         padded_shapes=(
             (tf.TensorShape([None, None, 4]),   # Node features
-             tf.TensorShape([None, None])),     # Adjacency matrix
             tf.TensorShape([None])              # Labels
+             tf.TensorShape([None, None])),     # Adjacency matrix
         ),
         padding_values=(
             (tf.constant(0.0),  # Padding value for features
-             tf.constant(0.0)),  # Padding value for adjacency matrix
             tf.constant(0.0)    # Padding value for labels
+             tf.constant(0.0)),  # Padding value for adjacency matrix
         )
     )
     return dataset
