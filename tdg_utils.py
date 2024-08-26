@@ -107,7 +107,7 @@ def preprocess_tdg(tdg):
 
     return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix
 
-def data_generator(file_list, batch_size, balance=False, is_tdg=True, max_nodes=8000):
+def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
     graphs = []
     
     if is_tdg:
@@ -320,7 +320,7 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, max_nodes):
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
-        for features, labels, node_ids, adjacency_matrix in data_generator(file_list, batch_size, balance, is_tdg):
+        for features, labels, node_ids, adjacency_matrix in data_generator(file_list, balance, is_tdg):
             if features.size > 0 and adjacency_matrix.size > 0:
                 yield (features, adjacency_matrix), labels  # Only yield features (including adjacency) and labels
             else:

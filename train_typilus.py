@@ -61,7 +61,7 @@ def main(json_output_dir, model_output_path, batch_size):
     val_dataset = create_tf_dataset(val_files, batch_size, balance=True, is_tdg=True)
 
     # Unpack the dataset correctly
-    (sample_feature, sample_adj), sample_labels = next(iter(train_dataset))
+    sample_feature, sample_labels, sample_node_ids, sample_adj = next(iter(train_dataset))
     input_dim = sample_feature.shape[-1] if sample_feature.shape[0] > 0 else 4  # Default to 4 if shape is invalid
     max_nodes = sample_feature.shape[1] if sample_feature.shape[0] > 0 else 1  # Default to 1 node if shape is invalid
 
