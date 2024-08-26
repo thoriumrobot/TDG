@@ -129,7 +129,7 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
                 if balance:
                     features, labels, node_ids, adjacency_matrix = balance_dataset(features, labels, node_ids, adjacency_matrix)
                 
-                graphs.append((features, labels, adjacency_matrix))
+                graphs.append((features, labels, node_ids, adjacency_matrix))
             except Exception as e:
                 logging.error(f"Error processing graph in file {file_path}: {e}")
                 continue
@@ -151,7 +151,7 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
             if features.size == 0 or adjacency_matrix.size == 0:
                 logging.warning("The combined graph is empty or invalid.")
                 return
-            graphs.append((features, labels, adjacency_matrix))
+            graphs.append((features, labels, node_ids, adjacency_matrix))
         except Exception as e:
             logging.error(f"Error processing combined graph: {e}")
             return
