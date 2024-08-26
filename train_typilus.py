@@ -2,7 +2,6 @@ import os
 import sys
 import numpy as np
 from sklearn.model_selection import train_test_split
-#from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, Layer
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from spektral.layers import GCNConv, GlobalSumPool
@@ -11,9 +10,7 @@ import logging
 from tdg_utils import load_tdg_data, f1_score, create_tf_dataset
 from tensorflow.keras import Model
 
-#tf.config.optimizer.set_jit(False)
-
-# Create the Precision and Recall objects once
+# Instantiate metrics once
 precision_metric = tf.keras.metrics.Precision()
 recall_metric = tf.keras.metrics.Recall()
 
@@ -27,8 +24,6 @@ def f1_score(y_true, y_pred, precision_metric, recall_metric):
     
     # Compute the F1 score
     return 2 * (precision_value * recall_value) / (precision_value + recall_value + tf.keras.backend.epsilon())
-
-from tensorflow.keras.layers import Layer
 
 class PrintLayer(Layer):
     def call(self, inputs):
@@ -53,7 +48,7 @@ def build_gnn_model(input_dim, max_nodes):
 
     model = Model(inputs=[node_features_input, adj_input], outputs=output)
     
-    # Pass the pre-instantiated metrics
+    # Pass metrics to the model compilation
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[lambda y_true, y_pred: f1_score(y_true, y_pred, precision_metric, recall_metric)])
 
     return model
