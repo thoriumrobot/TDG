@@ -105,11 +105,14 @@ def preprocess_tdg(tdg):
             to_id = node_id_map[to_node]
             adjacency_matrix[from_id, to_id] = 1.0
     
+    features = np.array(features, dtype=np.float32)
+    adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
+    
     if features.size == 0 or adjacency_matrix.size == 0:
         logging.warning("Skipping empty or invalid graph.")
         return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1, 1)), np.zeros((1, 1))
 
-    return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix
+    return features, np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix
 
 def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
     graphs = []
@@ -118,18 +121,23 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
         # Training: Process pre-extracted graphs
         for file_path in file_list:
             try:
+                #pdb.set_trace()
+                
                 result = load_tdg_data(file_path)
                 if len(result) != 4:
                     logging.error(f"Graph from {file_path} returned {len(result)} values. Expected 4. Skipping this graph.")
                     continue
-
+                
                 features, labels, node_ids, adjacency_matrix = result
+                
+                features = np.array(features, dtype=np.float32)
+                adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
                 
                 # Skip if the graph is empty or invalid
                 if features.size == 0 or adjacency_matrix.size == 0:
                     logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
                     continue
-                #pdb.set_trace()
+                
                 if balance:
                     features, labels, node_ids, adjacency_matrix = balance_dataset(features, labels, node_ids, adjacency_matrix)
                 
@@ -152,8 +160,11 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
                 return
             
             features, labels, node_ids, adjacency_matrix = result
+            
+            features, labels, node_ids, adjacency_matrix = map(np.array, result)
+            
             if features.size == 0 or adjacency_matrix.size == 0:
-                logging.warning("The combined graph is empty or invalid.")
+                logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
                 return
             graphs.append((features, labels, node_ids, adjacency_matrix))
         except Exception as e:
@@ -274,86 +285,63 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, max_nodes):
     padded_node_ids = np.zeros((max_nodes,), dtype=np.int32)
     padded_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
 
-    # Ensure all feature arrays are padded to `feature_dim`
-    valid_features = []
-    for f in features:
-        if len(f.shape) < 2 or f.shape[1] < feature_dim:
-            f = np.pad(f, ((0, 0), (0, feature_dim - f.shape[1])), 'constant')
-        valid_features.append(f)
+    # Combine features, labels, node_ids, and adjacency matrices correctly
+    combined_features = np.concatenate(features, axis=0)
+    combined_labels = np.concatenate(labels, axis=0)
+    combined_node_ids = np.concatenate(node_ids, axis=0)
 
-    try:
-        # Combine and pad features, labels, node_ids, and adjacency matrices
-        combined_features = np.concatenate(valid_features, axis=0)
-        combined_labels = np.concatenate(labels, axis=0)
-        combined_node_ids = np.concatenate(node_ids, axis=0)
-        
-        # Check if combined features exceed max_nodes
-        num_nodes = min(combined_features.shape[0], max_nodes)
+    # Ensure combined features are within max_nodes
+    num_nodes = min(combined_features.shape[0], max_nodes)
 
-        # Create a large block diagonal adjacency matrix
-        combined_adj_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
-        offset = 0
-        for adj in adjacency_matrix:
-            size = adj.shape[0]
-            if offset + size > max_nodes:
-                break  # Stop if adding this adjacency matrix would exceed max_nodes
-            combined_adj_matrix[offset:offset+size, offset:offset+size] = adj
-            offset += size
+    # Adjust adjacency matrix
+    combined_adj_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+    offset = 0
+    for adj in adjacency_matrix:
+        size = adj.shape[0]
+        if offset + size > max_nodes:
+            break  # Stop if adding this adjacency matrix would exceed max_nodes
+        combined_adj_matrix[offset:offset+size, offset:offset+size] = adj
+        offset += size
 
-        # Truncate if necessary
-        combined_features = combined_features[:num_nodes, :]
-        combined_labels = combined_labels[:num_nodes]
-        combined_node_ids = combined_node_ids[:num_nodes]
-        combined_adj_matrix = combined_adj_matrix[:num_nodes, :num_nodes]
-
-        # Apply the padding to the final batch
-        padded_features[:num_nodes, :] = combined_features
-        padded_labels[:num_nodes] = combined_labels
-        padded_node_ids[:num_nodes] = combined_node_ids
-        padded_adj_matrix[:num_nodes, :num_nodes] = combined_adj_matrix
-
-    except IndexError as e:
-        print(f"Error in padding batch: {e}")
-        print(f"Features shape: {[f.shape for f in valid_features]}")
-        print(f"Labels shape: {[l.shape for l in labels]}")
-        print(f"Node IDs shape: {[n.shape for n in node_ids]}")
-        print(f"Adjacency Matrix shape: {[a.shape for a in adjacency_matrix]}")
-        raise
+    # Apply the padding to the final batch
+    padded_features[:num_nodes, :] = combined_features[:num_nodes]
+    padded_labels[:num_nodes] = combined_labels[:num_nodes]
+    padded_node_ids[:num_nodes] = combined_node_ids[:num_nodes]
+    padded_adj_matrix[:num_nodes, :num_nodes] = combined_adj_matrix
 
     return padded_features, padded_labels, padded_node_ids, padded_adj_matrix
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
-        for features, labels, adjacency_matrix in data_generator(file_list, balance, is_tdg):
-            if features.size > 0 and adjacency_matrix.size > 0:
-                yield (features, adjacency_matrix), labels  # Only yield features (including adjacency) and labels
-            else:
-                yield (
-                    (np.zeros((1, 4), dtype=np.float32), np.zeros((1, 1), dtype=np.float32)),  # Features and adjacency
-                    np.zeros((1,), dtype=np.float32)  # Labels
-                )
+        for (features, adjacency_matrix), labels in data_generator(file_list, balance, is_tdg):
+            features = np.array(features, dtype=np.float32)
+            adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
+            
+            if features.shape[-1] != 4 or len(adjacency_matrix.shape) != 2:
+                raise ValueError(f"Unexpected shapes: features shape {features.shape}, adjacency_matrix shape {adjacency_matrix.shape}")
+            
+            yield (features, adjacency_matrix), labels
 
-    # Set the shapes based on expected maximums, using dynamic dimensions
     dataset = tf.data.Dataset.from_generator(
         generator,
         output_signature=(
-            (tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features (None, None, 4)
-             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),     # Adjacency matrix (None, None)
-            tf.TensorSpec(shape=(None,), dtype=tf.float32)             # Labels (None,)
+            (tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features
+             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),  # Adjacency matrix
+            tf.TensorSpec(shape=(None,), dtype=tf.float32)  # Labels
         )
     )
 
     dataset = dataset.shuffle(buffer_size=10000).padded_batch(
         batch_size, 
         padded_shapes=(
-            (tf.TensorShape([None, 4]),   # Node features
-             tf.TensorShape([None, None])),     # Adjacency matrix
-            tf.TensorShape([None])              # Labels
+            (tf.TensorShape([None, 4]),  # Node features
+             tf.TensorShape([None, None])),  # Adjacency matrix
+            tf.TensorShape([None])  # Labels
         ),
         padding_values=(
             (tf.constant(0.0),  # Padding value for features
              tf.constant(0.0)),  # Padding value for adjacency matrix
-            tf.constant(0.0)    # Padding value for labels
+            tf.constant(0.0)  # Padding value for labels
         )
     )
     return dataset
