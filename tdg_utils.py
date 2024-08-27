@@ -2,6 +2,7 @@ import json
 import networkx as nx
 from collections import defaultdict
 from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Layer
 import tensorflow as tf
 import numpy as np
 import random
