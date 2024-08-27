@@ -4,12 +4,10 @@ import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.layers import Layer
 import logging
-import traceback
 import tensorflow as tf
-from tdg_utils import f1_score, create_tf_dataset, process_java_file, NodeIDMapper, node_id_mapper, JavaTDG, preprocess_tdg
+from tdg_utils import f1_score, preprocess_tdg, process_java_file, NodeIDMapper, node_id_mapper, JavaTDG
 
-#node_id_mapper = NodeIDMapper()  # Initialize the node ID mapper
-
+@tf.keras.utils.register_keras_serializable()
 class BooleanMaskLayer(Layer):
     def call(self, inputs):
         output, mask = inputs
@@ -109,7 +107,7 @@ def process_project(project_dir, output_dir, model, batch_size):
     logging.info(f"Annotation complete for project {project_dir}")
 
 def main(project_dir, model_path, output_dir, batch_size):
-    model = load_model(model_path, custom_objects={'f1_score': f1_score})
+    model = load_model(model_path, custom_objects={'f1_score': f1_score, 'BooleanMaskLayer': BooleanMaskLayer})
     
     for subdir in os.listdir(project_dir):
         subdir_path = os.path.join(project_dir, subdir)
