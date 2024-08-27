@@ -59,7 +59,7 @@ def process_project(project_dir, output_dir, model, batch_size):
         padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
         padded_adjacency_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
         padded_features[:num_nodes, :] = features
-        padded_adjacency_matrix[:adjacency_matrix.shape[0], :adjacency_matrix.shape[1]] = adjacency_matrix
+        padded_adjacency_matrix[:num_nodes, :num_nodes] = adjacency_matrix
         features = padded_features
         adjacency_matrix = padded_adjacency_matrix
     
@@ -77,7 +77,10 @@ def process_project(project_dir, output_dir, model, batch_size):
 
     annotations = []
 
-    for node_index in prediction_node_ids:  # Iterate only over prediction nodes
+    # Ensure prediction_node_ids are within the valid range of the batch_predictions
+    valid_prediction_node_ids = [idx for idx in prediction_node_ids if idx < batch_predictions.shape[0]]
+
+    for node_index in valid_prediction_node_ids:  # Iterate only over valid prediction nodes
         prediction = batch_predictions[node_index, 0]  # Use node index as the first index, output index as second
         if prediction > 0:
             mapped_node_id = node_id_mapper.get_id(node_index)
