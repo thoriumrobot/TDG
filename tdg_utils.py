@@ -104,6 +104,10 @@ def preprocess_tdg(tdg):
             from_id = node_id_map[from_node]
             to_id = node_id_map[to_node]
             adjacency_matrix[from_id, to_id] = 1.0
+    
+    if features.size == 0 or adjacency_matrix.size == 0:
+        logging.warning("Skipping empty or invalid graph.")
+        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1, 1)), np.zeros((1, 1))
 
     return np.array(features, dtype=np.float32), np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix
 
@@ -158,7 +162,7 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
 
     # Accumulate and split graphs into batches of max_nodes
     for padded_features, padded_labels, padded_node_ids, padded_adj_matrix in accumulate_and_split_graphs(graphs, max_nodes):
-        yield padded_features, padded_labels, padded_adj_matrix #(padded_features, padded_adj_matrix), padded_labels
+        yield (padded_features, padded_adj_matrix), padded_labels #padded_features, padded_labels, padded_adj_matrix
 
 def load_tdg_data(json_path):
     try:
@@ -333,23 +337,23 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     dataset = tf.data.Dataset.from_generator(
         generator,
         output_signature=(
-            (tf.TensorSpec(shape=(None, None, 4), dtype=tf.float32),  # Node features (None, None, 4)
-            tf.TensorSpec(shape=(None,), dtype=tf.float32),             # Labels (None,)
-             tf.TensorSpec(shape=(None, None), dtype=tf.float32))     # Adjacency matrix (None, None)
+            (tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features (None, None, 4)
+             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),     # Adjacency matrix (None, None)
+            tf.TensorSpec(shape=(None,), dtype=tf.float32)             # Labels (None,)
         )
     )
 
     dataset = dataset.shuffle(buffer_size=10000).padded_batch(
         batch_size, 
         padded_shapes=(
-            (tf.TensorShape([None, None, 4]),   # Node features
-            tf.TensorShape([None]),              # Labels
-             tf.TensorShape([None, None]))     # Adjacency matrix
+            (tf.TensorShape([None, 4]),   # Node features
+             tf.TensorShape([None, None])),     # Adjacency matrix
+            tf.TensorShape([None])              # Labels
         ),
         padding_values=(
             (tf.constant(0.0),  # Padding value for features
-            tf.constant(0.0),    # Padding value for labels
-             tf.constant(0.0))  # Padding value for adjacency matrix
+             tf.constant(0.0)),  # Padding value for adjacency matrix
+            tf.constant(0.0)    # Padding value for labels
         )
     )
     return dataset
