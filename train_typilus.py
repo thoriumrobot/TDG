@@ -77,7 +77,7 @@ def main(json_output_dir, model_output_path, batch_size):
         verbose=1                    # Print a message when the model is saved
     )
 
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, mode='min')
+    early_stopping = EarlyStopping(monitor='val_loss', patience=25, mode='min')
 
     history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint, early_stopping])
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     json_output_dir = sys.argv[1]
-    model_output_path = sys.argv[2]  # Ensure this is a full path, e.g., 'models/best_model.h5'
+    model_output_path = sys.argv[2]  # Ensure this is a full path, e.g., 'models/best_model.keras'
     batch_size = 1 #int(sys.argv[3])
 
     main(json_output_dir, model_output_path, batch_size)
