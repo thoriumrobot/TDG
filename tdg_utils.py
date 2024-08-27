@@ -80,7 +80,9 @@ def preprocess_tdg(tdg):
     features = []
     labels = []
     node_ids = []
-    valid_nodes = set(tdg.graph.nodes)
+    
+    # Identify valid nodes
+    valid_nodes = {node for node, attr in tdg.graph.nodes(data='attr') if attr and attr.get('type') in ['method', 'field', 'parameter']}
     node_id_map = {node: idx for idx, node in enumerate(valid_nodes)}
 
     num_valid_nodes = len(valid_nodes)
@@ -88,10 +90,11 @@ def preprocess_tdg(tdg):
         # Ensure valid non-empty arrays with default values
         return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1))
 
+    # Initialize the adjacency matrix for valid nodes only
     adjacency_matrix = np.zeros((num_valid_nodes, num_valid_nodes), dtype=np.float32)
 
     for node_id, attr in tdg.graph.nodes(data='attr'):
-        if node_id in valid_nodes and attr and attr.get('type') in ['method', 'field', 'parameter']:
+        if node_id in valid_nodes:
             feature_vector = extract_features(attr)
             label = float(attr.get('nullable', 0))
             features.append(feature_vector)
@@ -99,6 +102,7 @@ def preprocess_tdg(tdg):
             labels.append(label)
             node_ids.append(node_index)
 
+    # Build the adjacency matrix for only the selected nodes
     for from_node, to_node in tdg.graph.edges():
         if from_node in valid_nodes and to_node in valid_nodes:
             from_id = node_id_map[from_node]
