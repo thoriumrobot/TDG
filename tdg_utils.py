@@ -61,6 +61,11 @@ class NodeIDMapper:
 node_id_mapper = NodeIDMapper()
 
 def extract_features(attr):
+    if attr is None:
+        # Handle the None case by providing default values
+        logging.warning("Encountered NoneType for attr. Using default values.")
+        return [0.0, 0.0, 0.0, 0.0]  # Default feature vector
+
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
     type_name_mapping = defaultdict(lambda: len(type_name_mapping))
@@ -156,6 +161,11 @@ def preprocess_tdg(tdg):
     adjacency_matrix = np.zeros((num_valid_nodes, num_valid_nodes), dtype=np.float32)
 
     for node_id, attr in tdg.graph.nodes(data='attr'):
+        # Check if attr is None and handle it
+        if attr is None:
+            logging.warning(f"Node {node_id} has no attributes. Skipping.")
+            continue
+
         feature_vector = extract_features(attr)
         node_index = node_id_map[node_id]
         features.append(feature_vector)

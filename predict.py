@@ -75,9 +75,18 @@ def process_project(project_dir, output_dir, model, batch_size):
     # Run the model prediction
     batch_predictions = model.predict([features, adjacency_matrix, prediction_mask])
 
+    # Ensure prediction node indices are within bounds
+    if len(batch_predictions.shape) < 2 or batch_predictions.shape[1] < max(prediction_node_ids, default=-1) + 1:
+        logging.error(f"Model output shape {batch_predictions.shape} does not match the expected prediction indices.")
+        return
+    
     annotations = []
 
     for node_index in prediction_node_ids:  # Iterate only over prediction nodes
+        if node_index >= batch_predictions.shape[1]:
+            logging.warning(f"Node index {node_index} is out of bounds for model output shape {batch_predictions.shape}. Skipping.")
+            continue
+        
         prediction = batch_predictions[0, node_index]  # Use index directly
         if prediction > 0:
             mapped_node_id = node_id_mapper.get_id(node_index)
