@@ -76,109 +76,6 @@ def extract_features(attr):
 
     return [float(type_id), float(name_id), float(type_name_id), nullable]
 
-def preprocess_tdg(tdg):
-    features = []
-    labels = []
-    node_ids = []
-    
-    # Identify valid nodes
-    valid_nodes = {node for node, attr in tdg.graph.nodes(data='attr') if attr and attr.get('type') in ['method', 'field', 'parameter']}
-    node_id_map = {node: idx for idx, node in enumerate(valid_nodes)}
-
-    num_valid_nodes = len(valid_nodes)
-    if num_valid_nodes == 0:
-        # Ensure valid non-empty arrays with default values
-        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1))
-
-    # Initialize the adjacency matrix for valid nodes only
-    adjacency_matrix = np.zeros((num_valid_nodes, num_valid_nodes), dtype=np.float32)
-
-    for node_id, attr in tdg.graph.nodes(data='attr'):
-        if node_id in valid_nodes:
-            feature_vector = extract_features(attr)
-            label = float(attr.get('nullable', 0))
-            features.append(feature_vector)
-            node_index = node_id_map[node_id]
-            labels.append(label)
-            node_ids.append(node_index)
-
-    # Build the adjacency matrix for only the selected nodes
-    for from_node, to_node in tdg.graph.edges():
-        if from_node in valid_nodes and to_node in valid_nodes:
-            from_id = node_id_map[from_node]
-            to_id = node_id_map[to_node]
-            adjacency_matrix[from_id, to_id] = 1.0
-    
-    features = np.array(features, dtype=np.float32)
-    adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
-    
-    if features.size == 0 or adjacency_matrix.size == 0:
-        logging.warning("Skipping empty or invalid graph.")
-        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1, 1)), np.zeros((1, 1))
-
-    return features, np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix
-
-def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
-    graphs = []
-    
-    if is_tdg:
-        # Training: Process pre-extracted graphs
-        for file_path in file_list:
-            try:
-                #pdb.set_trace()
-                
-                result = load_tdg_data(file_path)
-                if len(result) != 4:
-                    logging.error(f"Graph from {file_path} returned {len(result)} values. Expected 4. Skipping this graph.")
-                    continue
-                
-                features, labels, node_ids, adjacency_matrix = result
-                
-                features = np.array(features, dtype=np.float32)
-                adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
-                
-                # Skip if the graph is empty or invalid
-                if features.size == 0 or adjacency_matrix.size == 0:
-                    logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
-                    continue
-                
-                if balance:
-                    features, labels, node_ids, adjacency_matrix = balance_dataset(features, labels, node_ids, adjacency_matrix)
-                
-                graphs.append((features, labels, node_ids, adjacency_matrix))
-            except Exception as e:
-                logging.error(f"Error processing graph in file {file_path}: {e}")
-                continue
-
-    else:
-        # Prediction: Combine all Java source code into a single graph
-        tdg = JavaTDG()
-        for file_path in file_list:
-            process_java_file(file_path, tdg)
-
-        # Preprocess the combined graph
-        try:
-            result = preprocess_tdg(tdg)
-            if len(result) != 4:
-                logging.error(f"Combined graph returned {len(result)} values. Expected 4. Skipping this graph.")
-                return
-            
-            features, labels, node_ids, adjacency_matrix = result
-            
-            features, labels, node_ids, adjacency_matrix = map(np.array, result)
-            
-            if features.size == 0 or adjacency_matrix.size == 0:
-                logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
-                return
-            graphs.append((features, labels, node_ids, adjacency_matrix))
-        except Exception as e:
-            logging.error(f"Error processing combined graph: {e}")
-            return
-
-    # Accumulate and split graphs into batches of max_nodes
-    for padded_features, padded_labels, padded_node_ids, padded_adj_matrix in accumulate_and_split_graphs(graphs, max_nodes):
-        yield (padded_features, padded_adj_matrix), padded_labels #padded_features, padded_labels, padded_adj_matrix
-
 def load_tdg_data(json_path):
     try:
         with open(json_path, 'r') as f:
@@ -188,10 +85,10 @@ def load_tdg_data(json_path):
         return preprocess_tdg(tdg)
     except json.JSONDecodeError as e:
         logging.error(f"Error decoding JSON from {json_path}: {e}")
-        return ([], [], [], [])  # Return empty placeholders if there's an error
+        return ([], [], [], [], [])  # Return empty placeholders if there's an error
     except Exception as e:
         logging.error(f"Error processing {json_path}: {e}")
-        return ([], [], [], [])  # Handle other errors similarly
+        return ([], [], [], [], [])  # Handle other errors similarly
 
 def balance_dataset(features, labels, node_ids, adjacency_matrix):
     pos_indices = [i for i, label in enumerate(labels) if label == 1]
@@ -243,15 +140,116 @@ def renumber_and_prune(features, labels, adjacency_matrix):
 
     return pruned_features, pruned_labels, np.array(list(range(len(largest_cc)))), pruned_adjacency_matrix
 
+def preprocess_tdg(tdg):
+    features = []
+    labels = []
+    node_ids = []
+    prediction_node_ids = []  # Track node IDs for prediction
+    all_node_ids = set(tdg.graph.nodes)  # Track all nodes
+
+    node_id_map = {node: idx for idx, node in enumerate(all_node_ids)}  # Map all nodes
+
+    num_valid_nodes = len(all_node_ids)
+    if num_valid_nodes == 0:
+        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1)), []
+
+    adjacency_matrix = np.zeros((num_valid_nodes, num_valid_nodes), dtype=np.float32)
+
+    for node_id, attr in tdg.graph.nodes(data='attr'):
+        feature_vector = extract_features(attr)
+        node_index = node_id_map[node_id]
+        features.append(feature_vector)
+        node_ids.append(node_index)
+
+        if attr.get('type') in ['method', 'field', 'parameter']:
+            prediction_node_ids.append(node_index)
+            labels.append(float(attr.get('nullable', 0)))
+
+        # Map all nodes regardless of their type
+        node_id_mapper.get_int(node_id)  # Ensure the node ID is mapped
+
+    for from_node, to_node in tdg.graph.edges():
+        if from_node in all_node_ids and to_node in all_node_ids:
+            from_id = node_id_map[from_node]
+            to_id = node_id_map[to_node]
+            adjacency_matrix[from_id, to_id] = 1.0
+    
+    features = np.array(features, dtype=np.float32)
+    adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
+
+    if features.size == 0 or adjacency_matrix.size == 0:
+        logging.warning("Skipping empty or invalid graph.")
+        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1)), []
+
+    return features, np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix, prediction_node_ids
+
+def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
+    graphs = []
+    
+    if is_tdg:
+        # Training: Process pre-extracted graphs
+        for file_path in file_list:
+            try:
+                result = load_tdg_data(file_path)
+                if len(result) != 5:  # Adjust for the new return value
+                    logging.error(f"Graph from {file_path} returned {len(result)} values. Expected 5. Skipping this graph.")
+                    continue
+
+                features, labels, node_ids, adjacency_matrix, prediction_node_ids = result
+
+                features = np.array(features, dtype=np.float32)
+                adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
+                
+                # Skip if the graph is empty or invalid
+                if features.size == 0 or adjacency_matrix.size == 0:
+                    logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
+                    continue
+                
+                if balance:
+                    features, labels, prediction_node_ids, adjacency_matrix = balance_dataset(features, labels, prediction_node_ids, adjacency_matrix)
+
+                graphs.append((features, labels, node_ids, adjacency_matrix, prediction_node_ids))
+            except Exception as e:
+                logging.error(f"Error processing graph in file {file_path}: {e}")
+                continue
+
+    else:
+        # Prediction: Combine all Java source code into a single graph
+        tdg = JavaTDG()
+        for file_path in file_list:
+            process_java_file(file_path, tdg)
+
+        # Preprocess the combined graph
+        try:
+            result = preprocess_tdg(tdg)
+            if len(result) != 5:
+                logging.error(f"Combined graph returned {len(result)} values. Expected 5. Skipping this graph.")
+                return
+            
+            features, labels, node_ids, adjacency_matrix, prediction_node_ids = map(np.array, result)
+            
+            if features.size == 0 or adjacency_matrix.size == 0:
+                logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
+                return
+            graphs.append((features, labels, node_ids, adjacency_matrix, prediction_node_ids))
+        except Exception as e:
+            logging.error(f"Error processing combined graph: {e}")
+            return
+
+    # Accumulate and split graphs into batches of max_nodes
+    for padded_features, padded_labels, padded_node_ids, padded_adj_matrix, prediction_node_ids in accumulate_and_split_graphs(graphs, max_nodes):
+        yield (padded_features, padded_adj_matrix), (padded_labels, prediction_node_ids)
+
 def accumulate_and_split_graphs(graphs, max_nodes=8000):
     accumulated_features = []
     accumulated_labels = []
     accumulated_node_ids = []
     accumulated_adj_matrix = []
+    accumulated_prediction_node_ids = []
 
     current_node_count = 0
 
-    for features, labels, node_ids, adjacency_matrix in graphs:
+    for features, labels, node_ids, adjacency_matrix, prediction_node_ids in graphs:
         num_nodes = features.shape[0]
 
         # Skip empty or invalid graphs
@@ -260,13 +258,14 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
 
         # If adding this graph would exceed max_nodes, pad the current batch and start a new one
         if current_node_count + num_nodes > max_nodes:
-            yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, max_nodes)
+            yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
 
             # Reset accumulation
             accumulated_features = []
             accumulated_labels = []
             accumulated_node_ids = []
             accumulated_adj_matrix = []
+            accumulated_prediction_node_ids = []
             current_node_count = 0
 
         # Add the current graph to the accumulation
@@ -274,13 +273,14 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
         accumulated_labels.append(labels)
         accumulated_node_ids.append(node_ids)
         accumulated_adj_matrix.append(adjacency_matrix)
+        accumulated_prediction_node_ids.append(prediction_node_ids)
         current_node_count += num_nodes
 
     # Yield any remaining accumulated graphs as the final batch
     if accumulated_features:
-        yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, max_nodes)
+        yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
 
-def pad_batch(features, labels, node_ids, adjacency_matrix, max_nodes):
+def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids, max_nodes):
     feature_dim = 4
 
     # Initialize padded arrays
@@ -313,30 +313,49 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, max_nodes):
     padded_node_ids[:num_nodes] = combined_node_ids[:num_nodes]
     padded_adj_matrix[:num_nodes, :num_nodes] = combined_adj_matrix
 
-    return padded_features, padded_labels, padded_node_ids, padded_adj_matrix
+    return padded_features, padded_labels, padded_node_ids, padded_adj_matrix, prediction_node_ids
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
-        for (features, adjacency_matrix), labels in data_generator(file_list, balance, is_tdg):
+        for (features, adjacency_matrix), (labels, prediction_node_ids) in data_generator(file_list, balance, is_tdg):
             features = np.array(features, dtype=np.float32)
             adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
             labels = np.array(labels, dtype=np.float32)
-            
+
             # Ensure labels have the correct shape
             if len(labels.shape) == 1:
                 labels = np.expand_dims(labels, -1)
+
+            # Ensure prediction_node_ids is a fixed-size 2D array, pad if necessary
+            max_prediction_nodes = 100  # Define a fixed length for prediction nodes
+            padded_prediction_node_ids = []
+            
+            for node_ids in prediction_node_ids:
+                if len(node_ids) > max_prediction_nodes:
+                    node_ids = node_ids[:max_prediction_nodes]  # Truncate
+                else:
+                    padding_length = max_prediction_nodes - len(node_ids)
+                    node_ids = np.pad(node_ids, (0, padding_length), 'constant', constant_values=-1)  # Pad with -1
+                padded_prediction_node_ids.append(node_ids)
+            
+            prediction_node_ids = np.array(padded_prediction_node_ids, dtype=np.int32)
+
+            # Generate the prediction mask
+            prediction_mask = np.zeros(features.shape[0], dtype=bool)
+            prediction_mask[prediction_node_ids] = True
             
             if features.shape[-1] != 4 or len(adjacency_matrix.shape) != 2:
                 raise ValueError(f"Unexpected shapes: features shape {features.shape}, adjacency_matrix shape {adjacency_matrix.shape}, labels shape {labels.shape}")
             
-            yield (features, adjacency_matrix), labels
+            yield (features, adjacency_matrix, prediction_mask), labels
 
     dataset = tf.data.Dataset.from_generator(
         generator,
         output_signature=(
             (tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features
-             tf.TensorSpec(shape=(None, None), dtype=tf.float32)),  # Adjacency matrix
-            tf.TensorSpec(shape=(None, 1), dtype=tf.float32)  # Labels (single output per graph)
+             tf.TensorSpec(shape=(None, None), dtype=tf.float32),  # Adjacency matrix
+             tf.TensorSpec(shape=(None,), dtype=tf.bool)),  # Prediction mask
+            tf.TensorSpec(shape=(None, 1), dtype=tf.float32)  # Labels
         )
     )
 
@@ -344,12 +363,14 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         batch_size, 
         padded_shapes=(
             (tf.TensorShape([None, 4]),  # Node features
-             tf.TensorShape([None, None])),  # Adjacency matrix
+             tf.TensorShape([None, None]),  # Adjacency matrix
+             tf.TensorShape([None])),  # Prediction mask
             tf.TensorShape([None, 1])  # Labels
         ),
         padding_values=(
             (tf.constant(0.0),  # Padding value for features
-             tf.constant(0.0)),  # Padding value for adjacency matrix
+             tf.constant(0.0),  # Padding value for adjacency matrix
+             tf.constant(False)),  # Padding value for prediction mask
             tf.constant(0.0)  # Padding value for labels
         )
     )

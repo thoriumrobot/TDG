@@ -35,45 +35,47 @@ def process_project(project_dir, output_dir, model, batch_size):
                  for file in files if file.endswith('.java')]
 
     combined_tdg = create_combined_tdg(file_list)
-    features, _, node_ids, adjacency_matrix = preprocess_tdg(combined_tdg)  # Omit labels here
+    features, _, node_ids, adjacency_matrix, prediction_node_ids = preprocess_tdg(combined_tdg)
 
     if features.size == 0 or adjacency_matrix.size == 0:
         logging.warning(f"No valid TDG created for project {project_dir}. Skipping.")
         return
     
-    # Check if the number of nodes is less than the expected 8000
+    # Pad features, adjacency matrix, and create the prediction mask
     num_nodes = features.shape[0]
-    max_nodes = 8000  # This should match the input size used during training
+    max_nodes = 8000
     feature_dim = features.shape[1] if features.ndim > 1 else 4
     
     if num_nodes < max_nodes:
-        # Pad features and adjacency matrix
         padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
         padded_adjacency_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
-        
-        # Copy the original features and adjacency matrix
         padded_features[:num_nodes, :] = features
         padded_adjacency_matrix[:num_nodes, :num_nodes] = adjacency_matrix
-        
         features = padded_features
         adjacency_matrix = padded_adjacency_matrix
-
-    # Expand dimensions to create a batch of size 1
+    
+    # Create prediction mask
+    prediction_mask = np.zeros((max_nodes,), dtype=bool)
+    prediction_mask[prediction_node_ids] = True
+    
+    # Expand dimensions to match model input expectations
     features = np.expand_dims(features, axis=0)
     adjacency_matrix = np.expand_dims(adjacency_matrix, axis=0)
-
-    # Predict using the model
-    batch_predictions = model.predict([features, adjacency_matrix])
+    prediction_mask = np.expand_dims(prediction_mask, axis=0)
+    
+    # Run the model prediction
+    batch_predictions = model.predict([features, adjacency_matrix, prediction_mask])
 
     annotations = []
 
-    for node_id, prediction in zip(node_ids, batch_predictions[0, :num_nodes]):
-        if prediction > 0:  # Assuming a threshold of 0 for @Nullable annotation
-            mapped_node_id = node_id_mapper.get_id(node_id)
+    for node_index in prediction_node_ids:  # Iterate only over prediction nodes
+        prediction = batch_predictions[0, node_index]  # Use index directly
+        if prediction > 0:
+            mapped_node_id = node_id_mapper.get_id(node_index)
             if mapped_node_id is None:
-                logging.warning(f"Node ID {node_id} not found in NodeIDMapper. Skipping.")
+                logging.warning(f"Node index {node_index} not found in NodeIDMapper. Skipping.")
                 continue
-            
+
             node_info = mapped_node_id.split('.')
             file_name = node_info[0]
             try:
@@ -85,6 +87,7 @@ def process_project(project_dir, output_dir, model, batch_size):
 
             annotations.append((file_name, line_num, col_num))
     
+    # Annotate files with predictions
     for file_name in set([ann[0] for ann in annotations]):
         input_file_path = os.path.join(project_dir, file_name)
         output_file_path = os.path.join(output_dir, file_name)

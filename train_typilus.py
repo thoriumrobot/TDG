@@ -30,9 +30,20 @@ class PrintLayer(Layer):
         tf.print("Shape of tensor:", tf.shape(inputs))
         return inputs
 
+class BooleanMaskLayer(Layer):
+    def call(self, inputs):
+        output, mask = inputs
+        return tf.boolean_mask(output, mask)
+
+    def compute_output_shape(self, input_shape):
+        output_shape, mask_shape = input_shape
+        # Since we are masking, the output shape is unknown until runtime
+        return (None, output_shape[-1])  # Returns the correct shape after masking
+
 def build_gnn_model(input_dim, max_nodes):
     node_features_input = Input(shape=(max_nodes, input_dim), name="node_features")
     adj_input = Input(shape=(max_nodes, max_nodes), name="adjacency_matrix")
+    prediction_mask = Input(shape=(max_nodes,), dtype=tf.bool, name="prediction_mask")
 
     logging.info(f"Node features input shape: {node_features_input.shape}")
     logging.info(f"Adjacency matrix input shape: {adj_input.shape}")
@@ -41,14 +52,15 @@ def build_gnn_model(input_dim, max_nodes):
     x = Dropout(0.5)(x)
     x = GCNConv(64, activation='relu')([x, adj_input])
     x = Dropout(0.5)(x)
-    x = GlobalSumPool()(x)
     x = Dense(32, activation='relu')(x)
     x = Dropout(0.5)(x)
-    output = Dense(1, activation='sigmoid')(x)
+    output = Dense(1, activation='sigmoid')(x)  # Outputs a value for each node
 
-    model = Model(inputs=[node_features_input, adj_input], outputs=output)
+    # Apply the custom boolean mask layer, now assuming the output is per node
+    masked_output = BooleanMaskLayer()([output, prediction_mask])
+
+    model = Model(inputs=[node_features_input, adj_input, prediction_mask], outputs=masked_output)
     
-    # Pass metrics to the model compilation
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     return model
@@ -61,7 +73,7 @@ def main(json_output_dir, model_output_path, batch_size):
     val_dataset = create_tf_dataset(val_files, batch_size, balance=True, is_tdg=True)
 
     # Unpack the dataset correctly
-    (sample_feature, sample_adj), sample_labels = next(iter(train_dataset))
+    (sample_feature, sample_adj, prediction_mask), sample_labels = next(iter(train_dataset))
     input_dim = sample_feature.shape[-1] if sample_feature.shape[0] > 0 else 4  # Default to 4 if shape is invalid
     max_nodes = sample_feature.shape[1] if sample_feature.shape[0] > 0 else 1  # Default to 1 node if shape is invalid
 
