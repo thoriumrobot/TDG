@@ -5,7 +5,7 @@ from tensorflow.keras.models import load_model
 import logging
 import traceback
 import tensorflow as tf
-from tdg_utils import f1_score, create_tf_dataset, process_java_file, NodeIDMapper, node_id_mapper
+from tdg_utils import f1_score, create_tf_dataset, process_java_file, NodeIDMapper, node_id_mapper, JavaTDG
 
 #node_id_mapper = NodeIDMapper()  # Initialize the node ID mapper
 
