@@ -35,19 +35,19 @@ def process_project(project_dir, output_dir, model, batch_size):
                  for file in files if file.endswith('.java')]
 
     combined_tdg = create_combined_tdg(file_list)
-    features, labels, node_ids, adjacency_matrix = preprocess_tdg(combined_tdg)
+    features, _, node_ids, adjacency_matrix = preprocess_tdg(combined_tdg)  # Omit labels here
 
     if features.size == 0 or adjacency_matrix.size == 0:
         logging.warning(f"No valid TDG created for project {project_dir}. Skipping.")
         return
     
-    dataset = tf.data.Dataset.from_tensor_slices((features, labels, node_ids, adjacency_matrix)).batch(batch_size)
+    dataset = tf.data.Dataset.from_tensor_slices((features, adjacency_matrix)).batch(batch_size)  # Remove labels
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     annotations = []
 
     for batch in dataset:
-        features, labels, node_ids, adjacency_matrix = batch
+        features, adjacency_matrix = batch  # Adjust to match new structure
         batch_predictions = model.predict([features, adjacency_matrix])
         for node_id, prediction in zip(node_ids.numpy(), batch_predictions):
             if prediction > 0:  # Assuming a threshold of 0 for @Nullable annotation

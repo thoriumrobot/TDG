@@ -68,7 +68,15 @@ def main(json_output_dir, model_output_path, batch_size):
     # Pass both input_dim and max_nodes to the model
     model = build_gnn_model(input_dim, max_nodes)
     
-    checkpoint = ModelCheckpoint(model_output_path, monitor='val_f1_score', save_best_only=True, mode='max')
+    # Define the ModelCheckpoint callback
+    checkpoint = ModelCheckpoint(
+        filepath=model_output_path,  # Path where the model will be saved
+        monitor='val_f1_score',      # Metric to monitor
+        save_best_only=True,         # Save only the best model
+        mode='max',                  # Maximize the monitored metric
+        verbose=1                    # Print a message when the model is saved
+    )
+
     early_stopping = EarlyStopping(monitor='val_f1_score', patience=10, mode='max')
 
     history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint, early_stopping])
@@ -80,7 +88,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     json_output_dir = sys.argv[1]
-    model_output_path = sys.argv[2]
+    model_output_path = sys.argv[2]  # Ensure this is a full path, e.g., 'models/best_model.h5'
     batch_size = int(sys.argv[3])
 
     main(json_output_dir, model_output_path, batch_size)

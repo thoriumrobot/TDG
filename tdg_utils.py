@@ -316,9 +316,14 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         for (features, adjacency_matrix), labels in data_generator(file_list, balance, is_tdg):
             features = np.array(features, dtype=np.float32)
             adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
+            labels = np.array(labels, dtype=np.float32)
+            
+            # Ensure labels have the correct shape
+            if len(labels.shape) == 1:
+                labels = np.expand_dims(labels, -1)
             
             if features.shape[-1] != 4 or len(adjacency_matrix.shape) != 2:
-                raise ValueError(f"Unexpected shapes: features shape {features.shape}, adjacency_matrix shape {adjacency_matrix.shape}")
+                raise ValueError(f"Unexpected shapes: features shape {features.shape}, adjacency_matrix shape {adjacency_matrix.shape}, labels shape {labels.shape}")
             
             yield (features, adjacency_matrix), labels
 
@@ -327,7 +332,7 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         output_signature=(
             (tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features
              tf.TensorSpec(shape=(None, None), dtype=tf.float32)),  # Adjacency matrix
-            tf.TensorSpec(shape=(None,), dtype=tf.float32)  # Labels
+            tf.TensorSpec(shape=(None, 1), dtype=tf.float32)  # Labels (single output per graph)
         )
     )
 
@@ -336,7 +341,7 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
         padded_shapes=(
             (tf.TensorShape([None, 4]),  # Node features
              tf.TensorShape([None, None])),  # Adjacency matrix
-            tf.TensorShape([None])  # Labels
+            tf.TensorShape([None, 1])  # Labels
         ),
         padding_values=(
             (tf.constant(0.0),  # Padding value for features
