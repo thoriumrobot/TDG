@@ -59,7 +59,7 @@ def process_project(project_dir, output_dir, model, batch_size):
         padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
         padded_adjacency_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
         padded_features[:num_nodes, :] = features
-        padded_adjacency_matrix[:num_nodes, :num_nodes] = adjacency_matrix
+        padded_adjacency_matrix[:adjacency_matrix.shape[0], :adjacency_matrix.shape[1]] = adjacency_matrix
         features = padded_features
         adjacency_matrix = padded_adjacency_matrix
     
@@ -75,19 +75,10 @@ def process_project(project_dir, output_dir, model, batch_size):
     # Run the model prediction
     batch_predictions = model.predict([features, adjacency_matrix, prediction_mask])
 
-    # Ensure prediction node indices are within bounds
-    if len(batch_predictions.shape) < 2 or batch_predictions.shape[1] < max(prediction_node_ids, default=-1) + 1:
-        logging.error(f"Model output shape {batch_predictions.shape} does not match the expected prediction indices.")
-        return
-    
     annotations = []
 
     for node_index in prediction_node_ids:  # Iterate only over prediction nodes
-        if node_index >= batch_predictions.shape[1]:
-            logging.warning(f"Node index {node_index} is out of bounds for model output shape {batch_predictions.shape}. Skipping.")
-            continue
-        
-        prediction = batch_predictions[0, node_index]  # Use index directly
+        prediction = batch_predictions[node_index, 0]  # Use node index as the first index, output index as second
         if prediction > 0:
             mapped_node_id = node_id_mapper.get_id(node_index)
             if mapped_node_id is None:
