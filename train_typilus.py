@@ -49,7 +49,7 @@ def build_gnn_model(input_dim, max_nodes):
     model = Model(inputs=[node_features_input, adj_input], outputs=output)
     
     # Pass metrics to the model compilation
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[lambda y_true, y_pred: f1_score(y_true, y_pred, precision_metric, recall_metric)])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     return model
 
@@ -71,13 +71,13 @@ def main(json_output_dir, model_output_path, batch_size):
     # Define the ModelCheckpoint callback
     checkpoint = ModelCheckpoint(
         filepath=model_output_path,  # Path where the model will be saved
-        monitor='val_f1_score',      # Metric to monitor
+        monitor='val_loss',          # Metric to monitor
         save_best_only=True,         # Save only the best model
-        mode='max',                  # Maximize the monitored metric
+        mode='min',                  # Minimize the monitored metric (for loss)
         verbose=1                    # Print a message when the model is saved
     )
 
-    early_stopping = EarlyStopping(monitor='val_f1_score', patience=10, mode='max')
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10, mode='min')
 
     history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint, early_stopping])
 
