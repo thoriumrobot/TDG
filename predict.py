@@ -5,9 +5,19 @@ from tensorflow.keras.models import load_model
 import logging
 import traceback
 import tensorflow as tf
-from tdg_utils import f1_score, create_tf_dataset, process_java_file, NodeIDMapper, node_id_mapper, JavaTDG, preprocess_tdg, BooleanMaskLayer
+from tdg_utils import f1_score, create_tf_dataset, process_java_file, NodeIDMapper, node_id_mapper, JavaTDG, preprocess_tdg
 
 #node_id_mapper = NodeIDMapper()  # Initialize the node ID mapper
+
+class BooleanMaskLayer(Layer):
+    def call(self, inputs):
+        output, mask = inputs
+        return tf.boolean_mask(output, mask)
+
+    def compute_output_shape(self, input_shape):
+        output_shape, mask_shape = input_shape
+        # Since we are masking, the output shape is unknown until runtime
+        return (None, output_shape[-1])  # Returns the correct shape after masking
 
 def annotate_file(file_path, annotations, output_file_path):
     with open(file_path, 'r') as file:
