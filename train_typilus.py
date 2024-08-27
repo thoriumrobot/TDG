@@ -7,7 +7,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from spektral.layers import GCNConv, GlobalSumPool
 import tensorflow as tf
 import logging
-from tdg_utils import load_tdg_data, f1_score, create_tf_dataset
+from tdg_utils import load_tdg_data, f1_score, create_tf_dataset, BooleanMaskLayer
 from tensorflow.keras import Model
 
 # Instantiate metrics once
@@ -29,16 +29,6 @@ class PrintLayer(Layer):
     def call(self, inputs):
         tf.print("Shape of tensor:", tf.shape(inputs))
         return inputs
-
-class BooleanMaskLayer(Layer):
-    def call(self, inputs):
-        output, mask = inputs
-        return tf.boolean_mask(output, mask)
-
-    def compute_output_shape(self, input_shape):
-        output_shape, mask_shape = input_shape
-        # Since we are masking, the output shape is unknown until runtime
-        return (None, output_shape[-1])  # Returns the correct shape after masking
 
 def build_gnn_model(input_dim, max_nodes):
     node_features_input = Input(shape=(max_nodes, input_dim), name="node_features")

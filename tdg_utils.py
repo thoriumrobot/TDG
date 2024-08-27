@@ -60,6 +60,16 @@ class NodeIDMapper:
 
 node_id_mapper = NodeIDMapper()
 
+class BooleanMaskLayer(Layer):
+    def call(self, inputs):
+        output, mask = inputs
+        return tf.boolean_mask(output, mask)
+
+    def compute_output_shape(self, input_shape):
+        output_shape, mask_shape = input_shape
+        # Since we are masking, the output shape is unknown until runtime
+        return (None, output_shape[-1])  # Returns the correct shape after masking
+
 def extract_features(attr):
     type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
     name_mapping = defaultdict(lambda: len(name_mapping))
