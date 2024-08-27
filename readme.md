@@ -8,7 +8,7 @@ python extract_tdg.py ProjectDir OutputDir
 
 Training command:
 
-python train_typilus.py JsonOutputDir ModelOutputPath BatchSize
+python train_typilus.py JsonOutputDir ModelOutputPath
 
 Placement command:
 

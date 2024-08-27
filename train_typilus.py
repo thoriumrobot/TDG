@@ -82,13 +82,13 @@ def main(json_output_dir, model_output_path, batch_size):
     history = model.fit(train_dataset, epochs=50, validation_data=val_dataset, callbacks=[checkpoint, early_stopping])
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: python train_typilus.py <JsonOutputDir> <ModelOutputPath> <BatchSize>")
+    if len(sys.argv) != 3:
+        print("Usage: python train_typilus.py <JsonOutputDir> <ModelOutputPath>")
         sys.exit(1)
 
     logging.basicConfig(level=logging.INFO)
     json_output_dir = sys.argv[1]
     model_output_path = sys.argv[2]  # Ensure this is a full path, e.g., 'models/best_model.h5'
-    batch_size = int(sys.argv[3])
+    batch_size = 1 #int(sys.argv[3])
 
     main(json_output_dir, model_output_path, batch_size)
