@@ -50,22 +50,30 @@ def process_project(project_dir, output_dir, model, batch_size):
         logging.warning(f"No valid TDG created for project {project_dir}. Skipping.")
         return
     
-    # Pad features, adjacency matrix, and create the prediction mask
+    # Use the actual number of nodes from features
     num_nodes = features.shape[0]
     max_nodes = 8000
     feature_dim = features.shape[1] if features.ndim > 1 else 4
     
+    if num_nodes > max_nodes:
+        logging.warning(f"Number of nodes ({num_nodes}) exceeds max_nodes ({max_nodes}). Truncating the graph.")
+        num_nodes = max_nodes
+        adjacency_matrix = adjacency_matrix[:num_nodes, :num_nodes]
+        features = features[:num_nodes, :]
+
     if num_nodes < max_nodes:
         padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
         padded_adjacency_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
-        padded_features[:num_nodes, :] = features
-        padded_adjacency_matrix[:num_nodes, :num_nodes] = adjacency_matrix
+        # Note: Ensure we're padding to the exact size of features
+        padded_features[:num_nodes, :] = features[:num_nodes, :]
+        padded_adjacency_matrix[:num_nodes, :num_nodes] = adjacency_matrix[:num_nodes, :num_nodes]
         features = padded_features
         adjacency_matrix = padded_adjacency_matrix
     
     # Create prediction mask
     prediction_mask = np.zeros((max_nodes,), dtype=bool)
-    prediction_mask[prediction_node_ids] = True
+    valid_prediction_node_ids = [idx for idx in prediction_node_ids if idx < num_nodes]
+    prediction_mask[valid_prediction_node_ids] = True
     
     # Expand dimensions to match model input expectations
     features = np.expand_dims(features, axis=0)
@@ -75,12 +83,17 @@ def process_project(project_dir, output_dir, model, batch_size):
     # Run the model prediction
     batch_predictions = model.predict([features, adjacency_matrix, prediction_mask])
 
+    if batch_predictions.shape[0] != len(valid_prediction_node_ids):
+        logging.error(f"Model output shape {batch_predictions.shape} does not match the expected prediction indices.")
+        return
+
     annotations = []
 
-    # Ensure prediction_node_ids are within the valid range of the batch_predictions
-    valid_prediction_node_ids = [idx for idx in prediction_node_ids if idx < batch_predictions.shape[0]]
-
     for node_index in valid_prediction_node_ids:  # Iterate only over valid prediction nodes
+        if node_index >= batch_predictions.shape[0]:
+            logging.error(f"Node index {node_index} is out of bounds for predictions of size {batch_predictions.shape[0]}. Skipping.")
+            continue
+        
         prediction = batch_predictions[node_index, 0]  # Use node index as the first index, output index as second
         if prediction > 0:
             mapped_node_id = node_id_mapper.get_id(node_index)
