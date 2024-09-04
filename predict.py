@@ -6,6 +6,7 @@ from tensorflow.keras.layers import Layer
 import logging
 import tensorflow as tf
 from tdg_utils import f1_score, preprocess_tdg, process_java_file, NodeIDMapper, node_id_mapper, JavaTDG
+import networkx as nx
 
 @tf.keras.utils.register_keras_serializable()
 class BooleanMaskLayer(Layer):
@@ -15,15 +16,14 @@ class BooleanMaskLayer(Layer):
 
     def compute_output_shape(self, input_shape):
         output_shape, mask_shape = input_shape
-        # Since we are masking, the output shape is unknown until runtime
-        return (None, output_shape[-1])  # Returns the correct shape after masking
+        return (None, output_shape[-1])
 
 def annotate_file(file_path, annotations, output_file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
     
     for annotation in annotations:
-        node_id, line_num, col_num = annotation
+        _, line_num, col_num = annotation
         if 0 <= line_num - 1 < len(lines):
             lines[line_num - 1] = lines[line_num - 1][:col_num] + "@Nullable " + lines[line_num - 1][col_num:]
         else:
@@ -34,23 +34,55 @@ def annotate_file(file_path, annotations, output_file_path):
 
 def create_combined_tdg(file_list):
     combined_tdg = JavaTDG()
+    file_mappings = {}  # Map node IDs to file paths
+    line_number_mapping = {}  # Track line numbers for nodes across files
+    
     for file_path in file_list:
-        process_java_file(file_path, combined_tdg)
-    return combined_tdg
+        class_tdg = JavaTDG()
+        process_java_file(file_path, class_tdg)
+        
+        for node_id, node_data in class_tdg.graph.nodes(data=True):
+            if node_data['attr'].get('line_number') is None:
+                continue
+            
+            # Normalize node_id by stripping the file-specific prefix
+            combined_node_id = normalize_node_id(node_id)
+            
+            combined_tdg.add_node(
+                combined_node_id, 
+                node_data['attr']['type'], 
+                node_data['attr']['name'], 
+                line_number=node_data['attr'].get('line_number'), 
+                nullable=node_data['attr'].get('nullable'), 
+                actual_type=node_data['attr'].get('actual_type')
+            )
+            
+            # Maintain the original file mapping and line numbers
+            file_mappings[combined_node_id] = file_path
+            line_number_mapping[combined_node_id] = node_data['attr'].get('line_number')
+        
+        for from_node, to_node, edge_data in class_tdg.graph.edges(data=True):
+            combined_tdg.add_edge(normalize_node_id(from_node), normalize_node_id(to_node), edge_data['type'])
+    
+    return combined_tdg, file_mappings, line_number_mapping
+
+def normalize_node_id(node_id):
+    # Remove the file-specific part of the node_id to create a unified identifier
+    parts = node_id.split('.')
+    return '.'.join(parts[2:])  # This assumes the first part is the file-specific prefix
 
 def process_project(project_dir, output_dir, model, batch_size):
     file_list = [os.path.join(root, file)
                  for root, _, files in os.walk(project_dir)
                  for file in files if file.endswith('.java')]
 
-    combined_tdg = create_combined_tdg(file_list)
+    combined_tdg, file_mappings, line_number_mapping = create_combined_tdg(file_list)
     features, _, node_ids, adjacency_matrix, prediction_node_ids = preprocess_tdg(combined_tdg)
 
     if features.size == 0 or adjacency_matrix.size == 0:
         logging.warning(f"No valid TDG created for project {project_dir}. Skipping.")
         return
     
-    # Use the actual number of nodes from features
     num_nodes = features.shape[0]
     max_nodes = 8000
     feature_dim = features.shape[1] if features.ndim > 1 else 4
@@ -64,23 +96,19 @@ def process_project(project_dir, output_dir, model, batch_size):
     if num_nodes < max_nodes:
         padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
         padded_adjacency_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
-        # Note: Ensure we're padding to the exact size of features
         padded_features[:num_nodes, :] = features[:num_nodes, :]
         padded_adjacency_matrix[:num_nodes, :num_nodes] = adjacency_matrix[:num_nodes, :num_nodes]
         features = padded_features
         adjacency_matrix = padded_adjacency_matrix
     
-    # Create prediction mask
     prediction_mask = np.zeros((max_nodes,), dtype=bool)
     valid_prediction_node_ids = [idx for idx in prediction_node_ids if idx < num_nodes]
     prediction_mask[valid_prediction_node_ids] = True
     
-    # Expand dimensions to match model input expectations
     features = np.expand_dims(features, axis=0)
     adjacency_matrix = np.expand_dims(adjacency_matrix, axis=0)
     prediction_mask = np.expand_dims(prediction_mask, axis=0)
     
-    # Run the model prediction
     batch_predictions = model.predict([features, adjacency_matrix, prediction_mask])
 
     if batch_predictions.shape[0] != len(valid_prediction_node_ids):
@@ -88,31 +116,32 @@ def process_project(project_dir, output_dir, model, batch_size):
         return
 
     annotations = []
-
-    for node_index in valid_prediction_node_ids:  # Iterate only over valid prediction nodes
+    for node_index in valid_prediction_node_ids:
         if node_index >= batch_predictions.shape[0]:
             logging.error(f"Node index {node_index} is out of bounds for predictions of size {batch_predictions.shape[0]}. Skipping.")
             continue
         
-        prediction = batch_predictions[node_index, 0]  # Use node index as the first index, output index as second
+        prediction = batch_predictions[node_index, 0]
         if prediction > 0:
             mapped_node_id = node_id_mapper.get_id(node_index)
             if mapped_node_id is None:
                 logging.warning(f"Node index {node_index} not found in NodeIDMapper. Skipping.")
                 continue
 
-            node_info = mapped_node_id.split('.')
-            file_name = node_info[0]
-            try:
-                line_num = int(node_info[1])
-            except ValueError:
-                logging.warning(f"Invalid line number in node_id {mapped_node_id} for project {project_dir}. Skipping annotation.")
+            file_name = file_mappings.get(mapped_node_id)
+            if not file_name:
+                logging.warning(f"No file mapping found for node_id {mapped_node_id}. Skipping annotation.")
                 continue
-            col_num = 0
+
+            line_num = line_number_mapping.get(mapped_node_id, 0)
+            if line_num == 0:
+                logging.warning(f"Line number for node_id {mapped_node_id} not found. Skipping annotation.")
+                continue
+            
+            col_num = 0  # Assuming column number is not important or not provided
 
             annotations.append((file_name, line_num, col_num))
     
-    # Annotate files with predictions
     for file_name in set([ann[0] for ann in annotations]):
         input_file_path = os.path.join(project_dir, file_name)
         output_file_path = os.path.join(output_dir, file_name)

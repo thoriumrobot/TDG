@@ -422,14 +422,22 @@ def process_java_file(file_path, tdg):
                         param_id = f"{method_id}.{param.name}"
                         line_number = param.position.line if param.position else None
                         actual_type = get_actual_type(param)
-                        tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type)
+                        
+                        # Check for @Nullable annotation in method parameter
+                        nullable = any(annotation.name == "Nullable" for annotation in param.annotations)
+
+                        tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                         tdg.add_edge(method_id, param_id, "has_parameter")
                 for field in node.fields:
                     for decl in field.declarators:
                         field_id = f"{class_id}.{decl.name}"
                         line_number = decl.position.line if decl.position else None
                         actual_type = get_actual_type(decl)
-                        tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type)
+                        
+                        # Check for @Nullable annotation in field
+                        nullable = any(annotation.name == "Nullable" for annotation in field.annotations)
+
+                        tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                         tdg.add_edge(class_id, field_id, "has_field")
             elif isinstance(node, javalang.tree.MethodDeclaration):
                 method_id = f"{file_name}.{node.name}()"
@@ -439,14 +447,22 @@ def process_java_file(file_path, tdg):
                     param_id = f"{method_id}.{param.name}"
                     line_number = param.position.line if param.position else None
                     actual_type = get_actual_type(param)
-                    tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type)
+                    
+                    # Check for @Nullable annotation in method parameter
+                    nullable = any(annotation.name == "Nullable" for annotation in param.annotations)
+
+                    tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                     tdg.add_edge(method_id, param_id, "has_parameter")
             elif isinstance(node, javalang.tree.FieldDeclaration):
                 for decl in node.declarators:
                     field_id = f"{file_name}.{decl.name}"
                     line_number = decl.position.line if decl.position else None
                     actual_type = get_actual_type(decl)
-                    tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type)
+                    
+                    # Check for @Nullable annotation in field
+                    nullable = any(annotation.name == "Nullable" for annotation in node.annotations)
+
+                    tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                     tdg.add_edge(file_name, field_id, "has_field")
             elif isinstance(node, javalang.tree.VariableDeclarator):
                 var_id = f"{file_name}.{node.name}"
