@@ -386,6 +386,9 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     )
     return dataset
 
+def has_nullable_annotation(annotations):
+    return any(annotation.name == 'Nullable' for annotation in annotations)
+
 def get_actual_type(node):
     if hasattr(node, 'type') and hasattr(node.type, 'name'):
         return node.type.name
@@ -416,16 +419,14 @@ def process_java_file(file_path, tdg):
                 for method in node.methods:
                     method_id = f"{class_id}.{method.name}()"
                     line_number = method.position.line if method.position else None
-                    tdg.add_node(method_id, "method", method.name, line_number=line_number)
+                    nullable = has_nullable_annotation(method.annotations)
+                    tdg.add_node(method_id, "method", method.name, line_number=line_number, nullable=nullable)
                     tdg.add_edge(class_id, method_id, "contains")
                     for param in method.parameters:
                         param_id = f"{method_id}.{param.name}"
                         line_number = param.position.line if param.position else None
                         actual_type = get_actual_type(param)
-                        
-                        # Check for @Nullable annotation in method parameter
-                        nullable = any(annotation.name == "Nullable" for annotation in param.annotations)
-
+                        nullable = has_nullable_annotation(param.annotations)
                         tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                         tdg.add_edge(method_id, param_id, "has_parameter")
                 for field in node.fields:
@@ -433,10 +434,7 @@ def process_java_file(file_path, tdg):
                         field_id = f"{class_id}.{decl.name}"
                         line_number = decl.position.line if decl.position else None
                         actual_type = get_actual_type(decl)
-                        
-                        # Check for @Nullable annotation in field
-                        nullable = any(annotation.name == "Nullable" for annotation in field.annotations)
-
+                        nullable = has_nullable_annotation(field.annotations)
                         tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                         tdg.add_edge(class_id, field_id, "has_field")
             elif isinstance(node, javalang.tree.MethodDeclaration):
@@ -447,10 +445,7 @@ def process_java_file(file_path, tdg):
                     param_id = f"{method_id}.{param.name}"
                     line_number = param.position.line if param.position else None
                     actual_type = get_actual_type(param)
-                    
-                    # Check for @Nullable annotation in method parameter
-                    nullable = any(annotation.name == "Nullable" for annotation in param.annotations)
-
+                    nullable = has_nullable_annotation(param.annotations)
                     tdg.add_node(param_id, "parameter", param.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                     tdg.add_edge(method_id, param_id, "has_parameter")
             elif isinstance(node, javalang.tree.FieldDeclaration):
@@ -458,10 +453,7 @@ def process_java_file(file_path, tdg):
                     field_id = f"{file_name}.{decl.name}"
                     line_number = decl.position.line if decl.position else None
                     actual_type = get_actual_type(decl)
-                    
-                    # Check for @Nullable annotation in field
-                    nullable = any(annotation.name == "Nullable" for annotation in node.annotations)
-
+                    nullable = has_nullable_annotation(node.annotations)
                     tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
                     tdg.add_edge(file_name, field_id, "has_field")
             elif isinstance(node, javalang.tree.VariableDeclarator):

@@ -42,8 +42,8 @@ def create_combined_tdg(file_list):
         process_java_file(file_path, class_tdg)
         
         for node_id, node_data in class_tdg.graph.nodes(data=True):
-            if node_data['attr'].get('line_number') is None:
-                continue
+            #if node_data['attr'].get('line_number') is None:
+                #continue
             
             # Normalize node_id by stripping the file-specific prefix
             combined_node_id = normalize_node_id(node_id)
