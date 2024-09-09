@@ -10,21 +10,6 @@ import logging
 from tdg_utils import load_tdg_data, f1_score, create_tf_dataset
 from tensorflow.keras import Model
 
-# Instantiate metrics once
-precision_metric = tf.keras.metrics.Precision()
-recall_metric = tf.keras.metrics.Recall()
-
-def f1_score(y_true, y_pred, precision_metric, recall_metric):
-    # Update the metrics with the current batch
-    precision_metric.update_state(y_true, y_pred)
-    recall_metric.update_state(y_true, y_pred)
-
-    precision_value = precision_metric.result()
-    recall_value = recall_metric.result()
-    
-    # Compute the F1 score
-    return 2 * (precision_value * recall_value) / (precision_value + recall_value + tf.keras.backend.epsilon())
-
 class PrintLayer(Layer):
     def call(self, inputs):
         tf.print("Shape of tensor:", tf.shape(inputs))
@@ -48,20 +33,23 @@ def build_gnn_model(input_dim, max_nodes):
     logging.info(f"Node features input shape: {node_features_input.shape}")
     logging.info(f"Adjacency matrix input shape: {adj_input.shape}")
 
-    x = GCNConv(128, activation='relu')([node_features_input, adj_input])
-    x = Dropout(0.5)(x)
+    x = GCNConv(256, activation='relu')([node_features_input, adj_input])
+    x = Dropout(0.2)(x)
+    x = GCNConv(128, activation='relu')([x, adj_input])
+    x = Dropout(0.2)(x)
     x = GCNConv(64, activation='relu')([x, adj_input])
-    x = Dropout(0.5)(x)
+    x = Dropout(0.2)(x)
     x = Dense(32, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    output = Dense(1, activation='sigmoid')(x)  # Outputs a value for each node
+    x = Dropout(0.2)(x)
+    output = Dense(1, activation='sigmoid', kernel_regularizer=tf.keras.regularizers.l2(0.01))(x)
 
     # Apply the custom boolean mask layer, now assuming the output is per node
     masked_output = BooleanMaskLayer()([output, prediction_mask])
 
     model = Model(inputs=[node_features_input, adj_input, prediction_mask], outputs=masked_output)
     
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)  # Try different rates like 0.01, 0.0001
+    model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy', f1_score])
 
     return model
 

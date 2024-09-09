@@ -23,9 +23,9 @@ def annotate_file(file_path, annotations, output_file_path):
         lines = file.readlines()
     
     for annotation in annotations:
-        _, line_num, col_num = annotation
+        file_name, node_name, line_num = annotation
         if 0 <= line_num - 1 < len(lines):
-            lines[line_num - 1] = lines[line_num - 1][:col_num] + "@Nullable " + lines[line_num - 1][col_num:]
+            lines[line_num - 1] = lines[line_num - 1].replace(node_name, f"@Nullable {node_name}")
         else:
             logging.warning(f"Line number {line_num} is out of range in file {file_path}")
     
@@ -116,12 +116,11 @@ def process_project(project_dir, output_dir, model, batch_size):
         return
 
     annotations = []
+    counter=0
+    
     for node_index in valid_prediction_node_ids:
-        if node_index >= batch_predictions.shape[0]:
-            logging.error(f"Node index {node_index} is out of bounds for predictions of size {batch_predictions.shape[0]}. Skipping.")
-            continue
-        
-        prediction = batch_predictions[node_index, 0]
+        prediction = batch_predictions[counter, 0]
+        counter+=1
         if prediction > 0:
             mapped_node_id = node_id_mapper.get_id(node_index)
             if mapped_node_id is None:
@@ -138,13 +137,14 @@ def process_project(project_dir, output_dir, model, batch_size):
                 logging.warning(f"Line number for node_id {mapped_node_id} not found. Skipping annotation.")
                 continue
             
-            col_num = 0  # Assuming column number is not important or not provided
-
-            annotations.append((file_name, line_num, col_num))
+            node_name = combined_tdg.graph.nodes[mapped_node_id]['attr']['name']
+            
+            annotations.append((file_name, node_name, line_num))
     
     for file_name in set([ann[0] for ann in annotations]):
-        input_file_path = os.path.join(project_dir, file_name)
-        output_file_path = os.path.join(output_dir, file_name)
+        base_file_name = os.path.basename(file_name)
+        input_file_path = os.path.join(project_dir, base_file_name)
+        output_file_path = os.path.join(output_dir, base_file_name)
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         file_annotations = [ann for ann in annotations if ann[0] == file_name]
         annotate_file(input_file_path, file_annotations, output_file_path)
