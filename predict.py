@@ -53,6 +53,10 @@ def create_combined_tdg(file_list):
             # Normalize node_id by stripping the file-specific prefix
             combined_node_id = normalize_node_id(node_id)
             
+            if 'attr' not in node_data:
+                logging.warning(f"Node {node_id} is missing 'attr'. Skipping.")
+                continue
+            
             combined_tdg.add_node(
                 combined_node_id, 
                 node_data['attr']['type'], 
