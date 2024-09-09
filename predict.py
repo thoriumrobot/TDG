@@ -121,7 +121,7 @@ def process_project(project_dir, output_dir, model, batch_size):
     for node_index in valid_prediction_node_ids:
         prediction = batch_predictions[counter, 0]
         counter+=1
-        if prediction > 0:
+        if prediction > 0.3:
             mapped_node_id = node_id_mapper.get_id(node_index)
             if mapped_node_id is None:
                 logging.warning(f"Node index {node_index} not found in NodeIDMapper. Skipping.")
