@@ -145,11 +145,12 @@ def process_project(project_dir, output_dir, model, batch_size):
     
     for file_name in file_names:
         base_file_name = os.path.basename(file_name)
-        input_file_path = os.path.join(project_dir, base_file_name)
-        output_file_path = os.path.join(output_dir, base_file_name)
-        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+        relative_subdir = os.path.relpath(file_name, project_dir)
+        output_file_dir = os.path.join(output_dir, relative_subdir)
+        output_file_path = os.path.join(output_file_dir, base_file_name)
+        os.makedirs(os.path.dirname(output_file_dir), exist_ok=True)
         file_annotations = [ann for ann in annotations if ann[0] == file_name]
-        annotate_file(input_file_path, file_annotations, output_file_path)
+        annotate_file(file_name, file_annotations, output_file_path)
     
     logging.info(f"Annotation complete for project {project_dir}")
 
