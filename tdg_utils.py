@@ -432,7 +432,7 @@ def process_java_file(file_path, tdg):
                 for field in node.fields:
                     for decl in field.declarators:
                         field_id = f"{class_id}.{decl.name}"
-                        line_number = decl.position.line if decl.position else None
+                        line_number = field.position.line if decl.position else None
                         actual_type = get_actual_type(decl)
                         nullable = has_nullable_annotation(field.annotations)
                         tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type, nullable=nullable)
@@ -451,7 +451,7 @@ def process_java_file(file_path, tdg):
             elif isinstance(node, javalang.tree.FieldDeclaration):
                 for decl in node.declarators:
                     field_id = f"{file_name}.{decl.name}"
-                    line_number = decl.position.line if decl.position else None
+                    line_number = field.position.line if decl.position else None
                     actual_type = get_actual_type(decl)
                     nullable = has_nullable_annotation(node.annotations)
                     tdg.add_node(field_id, "field", decl.name, line_number=line_number, actual_type=actual_type, nullable=nullable)

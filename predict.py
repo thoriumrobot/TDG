@@ -141,7 +141,9 @@ def process_project(project_dir, output_dir, model, batch_size):
             
             annotations.append((file_name, node_name, line_num))
     
-    for file_name in set([ann[0] for ann in annotations]):
+    file_names = set([ann[0] for ann in annotations])
+    
+    for file_name in file_names:
         base_file_name = os.path.basename(file_name)
         input_file_path = os.path.join(project_dir, base_file_name)
         output_file_path = os.path.join(output_dir, base_file_name)
