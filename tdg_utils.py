@@ -395,10 +395,6 @@ def get_actual_type(node):
         return node.type.name
     return None
 
-1. Confirm that the edges will connect to the same node id that is being used elsewhere.
-
-2. Does this code correctly handle null references? (The various null literals do not require unique ids.)
-
 def get_superclass_name(node):
     """
     Extracts the superclass name from a class declaration node, if present.
