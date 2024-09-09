@@ -24,6 +24,11 @@ def annotate_file(file_path, annotations, output_file_path):
     
     for annotation in annotations:
         file_name, node_name, line_num = annotation
+        
+        if line_num is None:
+            logging.warning(f"Line number is None for node {node_name} in file {file_path}")
+            continue
+        
         if 0 <= line_num - 1 < len(lines):
             lines[line_num - 1] = lines[line_num - 1].replace(node_name, f"@Nullable {node_name}")
         else:
