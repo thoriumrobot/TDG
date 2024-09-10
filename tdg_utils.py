@@ -282,7 +282,7 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
         if num_nodes == 0:
             continue
 
-        # If adding the current graph exceeds max_nodes, yield the current batch and reset
+        # If adding this graph would exceed max_nodes, pad the current batch and start a new one
         if current_node_count + num_nodes > max_nodes:
             yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
 
@@ -299,19 +299,21 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
         local_node_ids = []
         for node_id in node_ids:
             if node_id not in global_to_local_id_map:
-                global_to_local_id_map[node_id] = current_node_count % max_nodes  # Modular arithmetic
+                global_to_local_id_map[node_id] = current_node_count % max_nodes  # Ensure IDs wrap within max_nodes
                 current_node_count += 1
             local_node_ids.append(global_to_local_id_map[node_id])
 
         # Create a local adjacency matrix with the size of num_nodes
-        local_adj_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+        local_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)  # Ensure matrix size is max_nodes by max_nodes
 
         # Update adjacency matrix with valid local node IDs
         for i in range(num_nodes):
             for j in range(num_nodes):
-                if adjacency_matrix[i, j] != 0:
-                    local_i = global_to_local_id_map.get(node_ids[i]) % max_nodes  # Modular arithmetic
-                    local_j = global_to_local_id_map.get(node_ids[j]) % max_nodes  # Modular arithmetic
+                local_i = global_to_local_id_map.get(node_ids[i]) % max_nodes  # Modular arithmetic
+                local_j = global_to_local_id_map.get(node_ids[j]) % max_nodes  # Modular arithmetic
+
+                # Ensure the indices are within valid bounds before updating the matrix
+                if local_i < max_nodes and local_j < max_nodes and adjacency_matrix[i, j] != 0:
                     local_adj_matrix[local_i, local_j] = adjacency_matrix[i, j]
 
         # Append the locally mapped features, labels, and matrices to the accumulated batch
