@@ -328,7 +328,7 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
         yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
 
 def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids, max_nodes):
-    feature_dim = 4  # The dimensionality of features
+    feature_dim = 4  # Assuming a feature dimensionality of 4
 
     # Initialize padded arrays
     padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
@@ -336,7 +336,7 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids,
     padded_node_ids = np.zeros((max_nodes,), dtype=np.int32)
     padded_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
 
-    # Combine features, labels, node_ids, and adjacency matrices
+    # Combine features, labels, node_ids, and adjacency matrices correctly
     combined_features = np.concatenate(features, axis=0)
     combined_labels = np.concatenate(labels, axis=0)
     combined_node_ids = np.concatenate(node_ids, axis=0)
@@ -344,19 +344,20 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids,
     # Ensure combined features are within max_nodes
     num_nodes = min(combined_features.shape[0], max_nodes)
 
-    # Adjust adjacency matrix
-    combined_adj_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+    # Adjust adjacency matrix: create a larger combined adjacency matrix
+    combined_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
     offset = 0
 
     # Loop over each adjacency matrix and place them within the combined_adj_matrix
     for adj in adjacency_matrix:
         size = adj.shape[0]
-        # Ensure that the adjacency matrix fits within the bounds of max_nodes
-        if offset + size > max_nodes:
-            size = max_nodes - offset
 
-        # Assign the adjacency matrix
-        combined_adj_matrix[offset:offset + size, offset:offset + size] = adj[:size, :size]
+        # Ensure that the adjacency matrix fits within the remaining space
+        if offset + size > max_nodes:
+            size = max_nodes - offset  # Limit size to the available space
+
+        # Only take the part of `adj` up to `size` to match actual number of nodes
+        combined_adj_matrix[offset:offset + size, offset:offset + size] = adj[offset:offset + size, :size]
         offset += size
 
     # Apply the padding to the final batch
