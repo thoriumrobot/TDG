@@ -328,7 +328,7 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
         yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
 
 def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids, max_nodes):
-    feature_dim = 4  # GCN uses 4-dimensional feature vectors
+    feature_dim = 4  # The dimensionality of features
 
     # Initialize padded arrays
     padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
@@ -339,7 +339,7 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids,
     # Combine features, labels, node_ids, and adjacency matrices
     combined_features = np.concatenate(features, axis=0)
     combined_labels = np.concatenate(labels, axis=0)
-    combined_node_ids = np.concatenate(node_ids, axis=0) % max_nodes  # Use modular arithmetic to ensure IDs are within bounds
+    combined_node_ids = np.concatenate(node_ids, axis=0)
 
     # Ensure combined features are within max_nodes
     num_nodes = min(combined_features.shape[0], max_nodes)
@@ -347,22 +347,26 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids,
     # Adjust adjacency matrix
     combined_adj_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
     offset = 0
+
+    # Loop over each adjacency matrix and place them within the combined_adj_matrix
     for adj in adjacency_matrix:
         size = adj.shape[0]
+        # Ensure that the adjacency matrix fits within the bounds of max_nodes
         if offset + size > max_nodes:
-            break  # Stop if adding this adjacency matrix would exceed max_nodes
-        combined_adj_matrix[offset:offset + size, offset:offset + size] = adj
+            size = max_nodes - offset
+
+        # Assign the adjacency matrix
+        combined_adj_matrix[offset:offset + size, offset:offset + size] = adj[:size, :size]
         offset += size
 
     # Apply the padding to the final batch
     padded_features[:num_nodes, :] = combined_features[:num_nodes]
     padded_labels[:num_nodes] = combined_labels[:num_nodes]
     padded_node_ids[:num_nodes] = combined_node_ids[:num_nodes]
-    padded_adj_matrix[:num_nodes, :num_nodes] = combined_adj_matrix
+    padded_adj_matrix[:num_nodes, :num_nodes] = combined_adj_matrix[:num_nodes, :num_nodes]
 
     # Flatten prediction_node_ids if it's a list of lists
     flat_prediction_node_ids = [item for sublist in prediction_node_ids for item in sublist]
-    flat_prediction_node_ids = np.array(flat_prediction_node_ids) % max_nodes  # Use modular arithmetic
 
     return padded_features, padded_labels, padded_node_ids, padded_adj_matrix, flat_prediction_node_ids
 
