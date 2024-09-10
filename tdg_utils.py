@@ -382,7 +382,11 @@ def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
             padded_prediction_node_ids = []
             
             for node_ids in prediction_node_ids:
-                if len(node_ids) > max_prediction_nodes:
+                if node_ids is None:
+                    continue
+                elif np.isscalar(node_ids):
+                    node_ids = [node_ids]  # Convert scalar to a list
+                elif len(node_ids) > max_prediction_nodes:
                     node_ids = node_ids[:max_prediction_nodes]  # Truncate
                 else:
                     padding_length = max_prediction_nodes - len(node_ids)
