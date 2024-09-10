@@ -146,53 +146,67 @@ def renumber_and_prune(features, labels, adjacency_matrix):
 
     return pruned_features, pruned_labels, np.array(list(range(len(largest_cc)))), pruned_adjacency_matrix
 
-def preprocess_tdg(tdg):
+def preprocess_tdg(tdg, max_nodes=8000):
     features = []
     labels = []
     node_ids = []
-    prediction_node_ids = []  # Track node IDs for prediction
-    all_node_ids = set(tdg.graph.nodes)  # Track all nodes
-
-    node_id_map = {node: idx for idx, node in enumerate(all_node_ids)}  # Map all nodes
+    prediction_node_ids = []
+    all_node_ids = list(tdg.graph.nodes)
 
     num_valid_nodes = len(all_node_ids)
     if num_valid_nodes == 0:
         return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1)), []
 
-    adjacency_matrix = np.zeros((num_valid_nodes, num_valid_nodes), dtype=np.float32)
+    # Initialize an adjacency matrix with max_nodes by max_nodes size
+    adjacency_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
 
+    # Create a local ID mapping within the bounds of [0, max_nodes) using modular arithmetic
+    node_id_map = {}
+    local_id_counter = 0
+
+    # Iterate through the nodes and assign them local IDs
+    for node_id in all_node_ids:
+        node_id_map[node_id] = local_id_counter % max_nodes  # Use modular arithmetic
+        local_id_counter += 1
+
+    # Populate features, labels, and adjacency matrix using local node IDs
     for node_id, attr in tdg.graph.nodes(data='attr'):
-        # Check if attr is None and handle it
-        if attr is None:
-            logging.warning(f"Node {node_id} has no attributes. Skipping.")
+        if attr is None or node_id not in node_id_map:
+            logging.warning(f"Node {node_id} has no attributes or is not mapped. Skipping.")
             continue
 
         feature_vector = extract_features(attr)
-        node_index = node_id_map[node_id]
+        local_node_id = node_id_map[node_id]
         features.append(feature_vector)
-        node_ids.append(node_index)
+        node_ids.append(local_node_id)
 
+        # Assign labels for nullable nodes (used for training)
         if attr.get('type') in ['method', 'field', 'parameter']:
-            prediction_node_ids.append(node_index)
+            prediction_node_ids.append(local_node_id)
             labels.append(float(attr.get('nullable', 0)))
 
-        # Map all nodes regardless of their type
-        node_id_mapper.get_int(node_id)  # Ensure the node ID is mapped
-
-    for from_node, to_node in tdg.graph.edges():
-        if from_node in all_node_ids and to_node in all_node_ids:
-            from_id = node_id_map[from_node]
-            to_id = node_id_map[to_node]
-            adjacency_matrix[from_id, to_id] = 1.0
-    
+    # Ensure labels and features are numpy arrays
     features = np.array(features, dtype=np.float32)
-    adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
+    labels = np.array(labels, dtype=np.float32)
+    node_ids = np.array(node_ids, dtype=np.int32)
 
-    if features.size == 0 or adjacency_matrix.size == 0:
-        logging.warning("Skipping empty or invalid graph.")
-        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1)), []
+    # Populate the adjacency matrix
+    for from_node, to_node in tdg.graph.edges():
+        if from_node in node_id_map and to_node in node_id_map:
+            from_local_id = node_id_map[from_node] % max_nodes  # Use modular arithmetic
+            to_local_id = node_id_map[to_node] % max_nodes  # Use modular arithmetic
+            adjacency_matrix[from_local_id, to_local_id] = 1.0
+            adjacency_matrix[to_local_id, from_local_id] = 1.0  # Reverse edge
 
-    return features, np.array(labels, dtype=np.float32), np.array(node_ids, dtype=np.int32), adjacency_matrix, prediction_node_ids
+    # Ensure features, labels, and adjacency matrix are trimmed to max_nodes
+    if features.shape[0] > max_nodes:
+        features = features[:max_nodes, :]
+        labels = labels[:max_nodes]
+        node_ids = node_ids[:max_nodes]
+        prediction_node_ids = [i for i in prediction_node_ids if i < max_nodes]
+        adjacency_matrix = adjacency_matrix[:max_nodes, :max_nodes]
+
+    return features, labels, node_ids, adjacency_matrix, prediction_node_ids
 
 def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
     graphs = []
@@ -259,6 +273,7 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
     accumulated_prediction_node_ids = []
 
     current_node_count = 0
+    global_to_local_id_map = {}  # Map global node IDs to local batch IDs
 
     for features, labels, node_ids, adjacency_matrix, prediction_node_ids in graphs:
         num_nodes = features.shape[0]
@@ -267,32 +282,51 @@ def accumulate_and_split_graphs(graphs, max_nodes=8000):
         if num_nodes == 0:
             continue
 
-        # If adding this graph would exceed max_nodes, pad the current batch and start a new one
+        # If adding the current graph exceeds max_nodes, yield the current batch and reset
         if current_node_count + num_nodes > max_nodes:
             yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
 
-            # Reset accumulation
+            # Reset accumulation for the next batch
             accumulated_features = []
             accumulated_labels = []
             accumulated_node_ids = []
             accumulated_adj_matrix = []
             accumulated_prediction_node_ids = []
             current_node_count = 0
+            global_to_local_id_map = {}  # Reset the global-to-local node ID map
 
-        # Add the current graph to the accumulation
+        # Remap global node IDs to local IDs within the batch using modular arithmetic
+        local_node_ids = []
+        for node_id in node_ids:
+            if node_id not in global_to_local_id_map:
+                global_to_local_id_map[node_id] = current_node_count % max_nodes  # Modular arithmetic
+                current_node_count += 1
+            local_node_ids.append(global_to_local_id_map[node_id])
+
+        # Create a local adjacency matrix with the size of num_nodes
+        local_adj_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+
+        # Update adjacency matrix with valid local node IDs
+        for i in range(num_nodes):
+            for j in range(num_nodes):
+                if adjacency_matrix[i, j] != 0:
+                    local_i = global_to_local_id_map.get(node_ids[i]) % max_nodes  # Modular arithmetic
+                    local_j = global_to_local_id_map.get(node_ids[j]) % max_nodes  # Modular arithmetic
+                    local_adj_matrix[local_i, local_j] = adjacency_matrix[i, j]
+
+        # Append the locally mapped features, labels, and matrices to the accumulated batch
         accumulated_features.append(features)
         accumulated_labels.append(labels)
-        accumulated_node_ids.append(node_ids)
-        accumulated_adj_matrix.append(adjacency_matrix)
-        accumulated_prediction_node_ids.append(prediction_node_ids)
-        current_node_count += num_nodes
+        accumulated_node_ids.append(np.array(local_node_ids, dtype=np.int32))  # Ensure local_node_ids are integers
+        accumulated_adj_matrix.append(local_adj_matrix)
+        accumulated_prediction_node_ids.append([global_to_local_id_map[i] for i in prediction_node_ids if i in global_to_local_id_map])
 
-    # Yield any remaining accumulated graphs as the final batch
+    # Yield the remaining batch if any
     if accumulated_features:
         yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
 
 def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids, max_nodes):
-    feature_dim = 4
+    feature_dim = 4  # GCN uses 4-dimensional feature vectors
 
     # Initialize padded arrays
     padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
@@ -300,10 +334,10 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids,
     padded_node_ids = np.zeros((max_nodes,), dtype=np.int32)
     padded_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
 
-    # Combine features, labels, node_ids, and adjacency matrices correctly
+    # Combine features, labels, node_ids, and adjacency matrices
     combined_features = np.concatenate(features, axis=0)
     combined_labels = np.concatenate(labels, axis=0)
-    combined_node_ids = np.concatenate(node_ids, axis=0)
+    combined_node_ids = np.concatenate(node_ids, axis=0) % max_nodes  # Use modular arithmetic to ensure IDs are within bounds
 
     # Ensure combined features are within max_nodes
     num_nodes = min(combined_features.shape[0], max_nodes)
@@ -315,7 +349,7 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids,
         size = adj.shape[0]
         if offset + size > max_nodes:
             break  # Stop if adding this adjacency matrix would exceed max_nodes
-        combined_adj_matrix[offset:offset+size, offset:offset+size] = adj
+        combined_adj_matrix[offset:offset + size, offset:offset + size] = adj
         offset += size
 
     # Apply the padding to the final batch
@@ -324,7 +358,11 @@ def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids,
     padded_node_ids[:num_nodes] = combined_node_ids[:num_nodes]
     padded_adj_matrix[:num_nodes, :num_nodes] = combined_adj_matrix
 
-    return padded_features, padded_labels, padded_node_ids, padded_adj_matrix, prediction_node_ids
+    # Flatten prediction_node_ids if it's a list of lists
+    flat_prediction_node_ids = [item for sublist in prediction_node_ids for item in sublist]
+    flat_prediction_node_ids = np.array(flat_prediction_node_ids) % max_nodes  # Use modular arithmetic
+
+    return padded_features, padded_labels, padded_node_ids, padded_adj_matrix, flat_prediction_node_ids
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
