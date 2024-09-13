@@ -1,6 +1,5 @@
 import json
 import networkx as nx
-from collections import defaultdict
 from tensorflow.keras import backend as K
 import tensorflow as tf
 import numpy as np
@@ -9,7 +8,6 @@ import logging
 import os
 import javalang
 import traceback
-import pdb
 
 class JavaTDG:
     def __init__(self):
@@ -30,18 +28,16 @@ def f1_score(y_true, y_pred):
     def recall(y_true, y_pred):
         true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
         possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-        recall = true_positives / (possible_positives + K.epsilon())
-        return recall
+        return true_positives / (possible_positives + K.epsilon())
 
     def precision(y_true, y_pred):
         true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
         predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-        precision = true_positives / (predicted_positives + K.epsilon())
-        return precision
+        return true_positives / (predicted_positives + K.epsilon())
 
-    precision = precision(y_true, y_pred)
-    recall = recall(y_true, y_pred)
-    return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
+    precision_val = precision(y_true, y_pred)
+    recall_val = recall(y_true, y_pred)
+    return 2 * ((precision_val * recall_val) / (precision_val + recall_val + K.epsilon()))
 
 class NodeIDMapper:
     def __init__(self):
@@ -61,26 +57,20 @@ class NodeIDMapper:
 
 node_id_mapper = NodeIDMapper()
 
+# Define mappings globally
+type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
+
 def extract_features(attr):
     if attr is None:
-        # Handle the None case by providing default values
         logging.warning("Encountered NoneType for attr. Using default values.")
-        return [0.0, 0.0, 0.0, 0.0]  # Default feature vector
-
-    type_mapping = {'class': 0, 'method': 1, 'field': 2, 'parameter': 3, 'variable': 4, 'literal': 5}
-    name_mapping = defaultdict(lambda: len(name_mapping))
-    type_name_mapping = defaultdict(lambda: len(type_name_mapping))
+        return [0.0, 0.0]  # Default feature vector with type_id and nullable
 
     node_type = attr.get('type', '')
-    node_name = attr.get('name', '')
-    actual_type = attr.get('actual_type', '')
     nullable = float(attr.get('nullable', 0))
 
     type_id = type_mapping.get(node_type, len(type_mapping))
-    name_id = name_mapping[node_name]
-    type_name_id = type_name_mapping[actual_type]
 
-    return [float(type_id), float(name_id), float(type_name_id), nullable]
+    return [float(type_id), nullable]
 
 def load_tdg_data(json_path):
     try:
@@ -100,123 +90,77 @@ def balance_dataset(features, labels, node_ids, adjacency_matrix):
     pos_indices = [i for i, label in enumerate(labels) if label == 1]
     neg_indices = [i for i, label in enumerate(labels) if label == 0]
 
+    if len(pos_indices) == 0 or len(neg_indices) == 0:
+        logging.warning("Cannot balance dataset with no positive or negative examples.")
+        return features, labels, node_ids, adjacency_matrix
+
     random.shuffle(neg_indices)
     selected_neg_indices = neg_indices[:len(pos_indices)]
 
     selected_indices = pos_indices + selected_neg_indices
     random.shuffle(selected_indices)
 
-    # Create subgraph with selected indices
     selected_features = features[selected_indices]
     selected_labels = labels[selected_indices]
-    #selected_node_ids = node_ids[selected_indices]
+    selected_node_ids = node_ids[selected_indices]
     selected_adjacency_matrix = adjacency_matrix[selected_indices, :][:, selected_indices]
-
-    # Renumber the nodes in the selected subgraph
-    selected_features, selected_labels, selected_node_ids, selected_adjacency_matrix = renumber_and_prune(selected_features, selected_labels, selected_adjacency_matrix)
 
     return selected_features, selected_labels, selected_node_ids, selected_adjacency_matrix
 
-def renumber_and_prune(features, labels, adjacency_matrix):
-    """
-    Renumber nodes in a connected subgraph and prune any disconnected nodes.
-    """
-    # Convert adjacency matrix to a graph object
-    graph = nx.from_numpy_array(adjacency_matrix, create_using=nx.DiGraph)
-    
-    # Check if the graph is empty or has no connected components
-    if len(graph) == 0 or not list(nx.weakly_connected_components(graph)):
-        # Return empty arrays if the graph has no connected components
-        return np.array([]), np.array([]), np.array([]), np.array([[]])
-
-    # Find the largest connected component
-    largest_cc = max(nx.weakly_connected_components(graph), key=len)
-
-    # Create a mapping from old to new node IDs
-    old_to_new = {old_id: new_id for new_id, old_id in enumerate(largest_cc)}
-
-    # Apply mapping to the features, labels, and adjacency matrix
-    pruned_features = np.array([features[old_to_new[i]] for i in sorted(largest_cc)])
-    pruned_labels = np.array([labels[old_to_new[i]] for i in sorted(largest_cc)])
-    pruned_adjacency_matrix = np.zeros((len(largest_cc), len(largest_cc)))
-
-    for i, old_id in enumerate(sorted(largest_cc)):
-        for j, old_id2 in enumerate(sorted(largest_cc)):
-            pruned_adjacency_matrix[i, j] = adjacency_matrix[old_id, old_id2]
-
-    return pruned_features, pruned_labels, np.array(list(range(len(largest_cc)))), pruned_adjacency_matrix
-
-def preprocess_tdg(tdg, max_nodes=8000):
+def preprocess_tdg(tdg):
     features = []
     labels = []
     node_ids = []
     prediction_node_ids = []
     all_node_ids = list(tdg.graph.nodes)
 
-    num_valid_nodes = len(all_node_ids)
-    if num_valid_nodes == 0:
-        return np.zeros((1, 4)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1)), []
+    if len(all_node_ids) == 0:
+        return np.zeros((1, 2)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1)), []
 
-    # Initialize an adjacency matrix with max_nodes by max_nodes size
-    adjacency_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
+    node_id_map = {}  # Map node IDs to indices
+    for idx, node_id in enumerate(all_node_ids):
+        node_id_map[node_id] = idx
 
-    # Create a local ID mapping within the bounds of [0, max_nodes) using modular arithmetic
-    node_id_map = {}
-    local_id_counter = 0
+    num_nodes = len(all_node_ids)
+    adjacency_matrix = np.zeros((num_nodes, num_nodes), dtype=np.float32)
 
-    # Iterate through the nodes and assign them local IDs
     for node_id in all_node_ids:
-        node_id_map[node_id] = local_id_counter % max_nodes  # Use modular arithmetic
-        local_id_counter += 1
-
-    # Populate features, labels, and adjacency matrix using local node IDs
-    for node_id, attr in tdg.graph.nodes(data='attr'):
-        if attr is None or node_id not in node_id_map:
-            logging.warning(f"Node {node_id} has no attributes or is not mapped. Skipping.")
-            continue
-
+        attr = tdg.graph.nodes[node_id].get('attr', {})
         feature_vector = extract_features(attr)
-        local_node_id = node_id_map[node_id]
         features.append(feature_vector)
-        node_ids.append(local_node_id)
+        node_index = node_id_map[node_id]
+        node_ids.append(node_index)
 
-        # Assign labels for nullable nodes (used for training)
+        # Map node IDs to indices for consistent mapping
+        node_id_mapper.get_int(node_id)  # Ensure the node ID is mapped
+
         if attr.get('type') in ['method', 'field', 'parameter']:
-            prediction_node_ids.append(local_node_id)
             labels.append(float(attr.get('nullable', 0)))
+            prediction_node_ids.append(node_index)
 
-    # Ensure labels and features are numpy arrays
+    for from_node, to_node in tdg.graph.edges():
+        from_idx = node_id_map.get(from_node)
+        to_idx = node_id_map.get(to_node)
+        if from_idx is not None and to_idx is not None:
+            adjacency_matrix[from_idx, to_idx] = 1.0
+
     features = np.array(features, dtype=np.float32)
     labels = np.array(labels, dtype=np.float32)
     node_ids = np.array(node_ids, dtype=np.int32)
 
-    # Populate the adjacency matrix
-    for from_node, to_node in tdg.graph.edges():
-        if from_node in node_id_map and to_node in node_id_map:
-            from_local_id = node_id_map[from_node] % max_nodes  # Use modular arithmetic
-            to_local_id = node_id_map[to_node] % max_nodes  # Use modular arithmetic
-            adjacency_matrix[from_local_id, to_local_id] = 1.0
-            adjacency_matrix[to_local_id, from_local_id] = 1.0  # Reverse edge
-
-    # Ensure features, labels, and adjacency matrix are trimmed to max_nodes
-    if features.shape[0] > max_nodes:
-        features = features[:max_nodes, :]
-        labels = labels[:max_nodes]
-        node_ids = node_ids[:max_nodes]
-        prediction_node_ids = [i for i in prediction_node_ids if i < max_nodes]
-        adjacency_matrix = adjacency_matrix[:max_nodes, :max_nodes]
+    if features.size == 0 or adjacency_matrix.size == 0:
+        logging.warning("Skipping empty or invalid graph.")
+        return np.zeros((1, 2)), np.zeros((1,)), np.zeros((1,)), np.zeros((1, 1)), []
 
     return features, labels, node_ids, adjacency_matrix, prediction_node_ids
 
-def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
-    graphs = []
-    
+def data_generator(file_list, balance=False, is_tdg=True):
     if is_tdg:
         # Training: Process pre-extracted graphs
         for file_path in file_list:
             try:
                 result = load_tdg_data(file_path)
-                if len(result) != 5:  # Adjust for the new return value
+                if len(result) != 5:
                     logging.error(f"Graph from {file_path} returned {len(result)} values. Expected 5. Skipping this graph.")
                     continue
 
@@ -224,205 +168,53 @@ def data_generator(file_list, balance=False, is_tdg=True, max_nodes=8000):
 
                 features = np.array(features, dtype=np.float32)
                 adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
-                
-                # Skip if the graph is empty or invalid
+
                 if features.size == 0 or adjacency_matrix.size == 0:
                     logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
                     continue
-                
+
                 if balance:
                     features, labels, prediction_node_ids, adjacency_matrix = balance_dataset(features, labels, prediction_node_ids, adjacency_matrix)
 
-                graphs.append((features, labels, node_ids, adjacency_matrix, prediction_node_ids))
+                yield (features, adjacency_matrix, prediction_node_ids), labels
             except Exception as e:
                 logging.error(f"Error processing graph in file {file_path}: {e}")
                 continue
-
     else:
-        # Prediction: Combine all Java source code into a single graph
-        tdg = JavaTDG()
-        for file_path in file_list:
-            process_java_file(file_path, tdg)
-
-        # Preprocess the combined graph
-        try:
-            result = preprocess_tdg(tdg)
-            if len(result) != 5:
-                logging.error(f"Combined graph returned {len(result)} values. Expected 5. Skipping this graph.")
-                return
-            
-            features, labels, node_ids, adjacency_matrix, prediction_node_ids = map(np.array, result)
-            
-            if features.size == 0 or adjacency_matrix.size == 0:
-                logging.warning(f"Skipping empty or invalid graph in file: {file_path}")
-                return
-            graphs.append((features, labels, node_ids, adjacency_matrix, prediction_node_ids))
-        except Exception as e:
-            logging.error(f"Error processing combined graph: {e}")
-            return
-
-    # Accumulate and split graphs into batches of max_nodes
-    for padded_features, padded_labels, padded_node_ids, padded_adj_matrix, prediction_node_ids in accumulate_and_split_graphs(graphs, max_nodes):
-        yield (padded_features, padded_adj_matrix), (padded_labels, prediction_node_ids)
-
-def accumulate_and_split_graphs(graphs, max_nodes=8000):
-    accumulated_features = []
-    accumulated_labels = []
-    accumulated_node_ids = []
-    accumulated_adj_matrix = []
-    accumulated_prediction_node_ids = []
-
-    current_node_count = 0
-    global_to_local_id_map = {}  # Map global node IDs to local batch IDs
-
-    for features, labels, node_ids, adjacency_matrix, prediction_node_ids in graphs:
-        num_nodes = features.shape[0]
-
-        # Skip empty or invalid graphs
-        if num_nodes == 0:
-            continue
-
-        # If adding this graph would exceed max_nodes, pad the current batch and start a new one
-        if current_node_count + num_nodes > max_nodes:
-            yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
-
-            # Reset accumulation for the next batch
-            accumulated_features = []
-            accumulated_labels = []
-            accumulated_node_ids = []
-            accumulated_adj_matrix = []
-            accumulated_prediction_node_ids = []
-            current_node_count = 0
-            global_to_local_id_map = {}  # Reset the global-to-local node ID map
-
-        # Remap global node IDs to local IDs within the batch using modular arithmetic
-        local_node_ids = []
-        for node_id in node_ids:
-            if node_id not in global_to_local_id_map:
-                global_to_local_id_map[node_id] = current_node_count % max_nodes  # Ensure IDs wrap within max_nodes
-                current_node_count += 1
-            local_node_ids.append(global_to_local_id_map[node_id])
-
-        # Create a local adjacency matrix with the size of num_nodes
-        local_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)  # Ensure matrix size is max_nodes by max_nodes
-
-        # Update adjacency matrix with valid local node IDs
-        for i in range(num_nodes):
-            for j in range(num_nodes):
-                local_i = global_to_local_id_map.get(node_ids[i]) % max_nodes  # Modular arithmetic
-                local_j = global_to_local_id_map.get(node_ids[j]) % max_nodes  # Modular arithmetic
-
-                # Ensure the indices are within valid bounds before updating the matrix
-                if local_i < max_nodes and local_j < max_nodes and adjacency_matrix[i, j] != 0:
-                    local_adj_matrix[local_i, local_j] = adjacency_matrix[i, j]
-
-        # Append the locally mapped features, labels, and matrices to the accumulated batch
-        accumulated_features.append(features)
-        accumulated_labels.append(labels)
-        accumulated_node_ids.append(np.array(local_node_ids, dtype=np.int32))  # Ensure local_node_ids are integers
-        accumulated_adj_matrix.append(local_adj_matrix)
-        accumulated_prediction_node_ids.append([global_to_local_id_map[i] for i in prediction_node_ids if i in global_to_local_id_map])
-
-    # Yield the remaining batch if any
-    if accumulated_features:
-        yield pad_batch(accumulated_features, accumulated_labels, accumulated_node_ids, accumulated_adj_matrix, accumulated_prediction_node_ids, max_nodes)
-
-def pad_batch(features, labels, node_ids, adjacency_matrix, prediction_node_ids, max_nodes):
-    feature_dim = 4  # Assuming a feature dimensionality of 4
-
-    # Initialize padded arrays
-    padded_features = np.zeros((max_nodes, feature_dim), dtype=np.float32)
-    padded_labels = np.zeros((max_nodes,), dtype=np.float32)
-    padded_node_ids = np.zeros((max_nodes,), dtype=np.int32)
-    padded_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
-
-    # Combine features, labels, node_ids, and adjacency matrices correctly
-    combined_features = np.concatenate(features, axis=0)
-    combined_labels = np.concatenate(labels, axis=0)
-    combined_node_ids = np.concatenate(node_ids, axis=0)
-
-    # Ensure combined features are within max_nodes
-    num_nodes = min(combined_features.shape[0], max_nodes)
-
-    # Adjust adjacency matrix: create a larger combined adjacency matrix
-    combined_adj_matrix = np.zeros((max_nodes, max_nodes), dtype=np.float32)
-    offset = 0
-
-    # Loop over each adjacency matrix and place them within the combined_adj_matrix
-    for adj in adjacency_matrix:
-        size = adj.shape[0]
-
-        # Ensure that the adjacency matrix fits within the remaining space
-        if offset + size > max_nodes:
-            size = max_nodes - offset  # Limit size to the available space
-
-        # Only take the part of `adj` up to `size` to match actual number of nodes
-        combined_adj_matrix[offset:offset + size, offset:offset + size] = adj[offset:offset + size, :size]
-        offset += size
-
-    # Apply the padding to the final batch
-    padded_features[:num_nodes, :] = combined_features[:num_nodes]
-    padded_labels[:num_nodes] = combined_labels[:num_nodes]
-    padded_node_ids[:num_nodes] = combined_node_ids[:num_nodes]
-    padded_adj_matrix[:num_nodes, :num_nodes] = combined_adj_matrix[:num_nodes, :num_nodes]
-
-    # Flatten prediction_node_ids if it's a list of lists
-    flat_prediction_node_ids = [item for sublist in prediction_node_ids for item in sublist]
-
-    return padded_features, padded_labels, padded_node_ids, padded_adj_matrix, flat_prediction_node_ids
+        # Prediction logic (if needed)
+        pass
 
 def create_tf_dataset(file_list, batch_size, balance=False, is_tdg=True):
     def generator():
-        for (features, adjacency_matrix), (labels, prediction_node_ids) in data_generator(file_list, balance, is_tdg):
+        for (features, adjacency_matrix, prediction_node_ids), labels in data_generator(file_list, balance, is_tdg):
             features = np.array(features, dtype=np.float32)
             adjacency_matrix = np.array(adjacency_matrix, dtype=np.float32)
             labels = np.array(labels, dtype=np.float32)
 
-            # Ensure labels have the correct shape
-            if len(labels.shape) == 1:
-                labels = np.expand_dims(labels, -1)
-
-            # Ensure prediction_node_ids is a fixed-size 2D array, pad if necessary
-            max_prediction_nodes = 100  # Define a fixed length for prediction nodes
-            padded_prediction_node_ids = []
-            
-            for node_ids in prediction_node_ids:
-                if node_ids is None:
-                    continue
-                elif np.isscalar(node_ids):
-                    node_ids = [node_ids]  # Convert scalar to a list
-                elif len(node_ids) > max_prediction_nodes:
-                    node_ids = node_ids[:max_prediction_nodes]  # Truncate
-                else:
-                    padding_length = max_prediction_nodes - len(node_ids)
-                    node_ids = np.pad(node_ids, (0, padding_length), 'constant', constant_values=-1)  # Pad with -1
-                padded_prediction_node_ids.append(node_ids)
-            
-            prediction_node_ids = np.array(padded_prediction_node_ids, dtype=np.int32)
-
-            # Generate the prediction mask
             prediction_mask = np.zeros(features.shape[0], dtype=bool)
             prediction_mask[prediction_node_ids] = True
-            
-            if features.shape[-1] != 4 or len(adjacency_matrix.shape) != 2:
-                raise ValueError(f"Unexpected shapes: features shape {features.shape}, adjacency_matrix shape {adjacency_matrix.shape}, labels shape {labels.shape}")
-            
-            yield (features, adjacency_matrix, prediction_mask), labels
+
+            # Extract labels corresponding to the prediction_mask
+            all_labels = np.zeros((features.shape[0], 1), dtype=np.float32)
+            all_labels[prediction_node_ids] = labels.reshape(-1, 1)
+            masked_labels = all_labels[prediction_mask]
+
+            yield (features, adjacency_matrix, prediction_mask), masked_labels
 
     dataset = tf.data.Dataset.from_generator(
         generator,
         output_signature=(
-            (tf.TensorSpec(shape=(None, 4), dtype=tf.float32),  # Node features
+            (tf.TensorSpec(shape=(None, 2), dtype=tf.float32),  # Node features
              tf.TensorSpec(shape=(None, None), dtype=tf.float32),  # Adjacency matrix
              tf.TensorSpec(shape=(None,), dtype=tf.bool)),  # Prediction mask
             tf.TensorSpec(shape=(None, 1), dtype=tf.float32)  # Labels
         )
     )
 
-    dataset = dataset.shuffle(buffer_size=10000).padded_batch(
-        batch_size, 
+    dataset = dataset.padded_batch(
+        batch_size,
         padded_shapes=(
-            (tf.TensorShape([None, 4]),  # Node features
+            (tf.TensorShape([None, 2]),  # Node features
              tf.TensorShape([None, None]),  # Adjacency matrix
              tf.TensorShape([None])),  # Prediction mask
             tf.TensorShape([None, 1])  # Labels
