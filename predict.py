@@ -22,6 +22,9 @@ def annotate_file(file_path, annotations, output_file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
     
+    # Sort annotations by line number so that inserted lines shift subsequent indices accordingly.
+    annotations.sort(key=lambda ann: ann[2])
+    offset = 0
     for annotation in annotations:
         file_name, node_name, line_num = annotation
         
@@ -29,30 +32,43 @@ def annotate_file(file_path, annotations, output_file_path):
             logging.warning(f"Line number is None for node {node_name} in file {file_path}")
             continue
         
-        line = lines[line_num - 1]
-        
-        if 0 <= line_num - 1 < len(lines) and "@Nullable {node_name}" not in line:
-            lines[line_num - 1] = line.replace(node_name, f"@Nullable {node_name}")
-        else:
+        # Adjust for any inserted annotation lines.
+        index = line_num - 1 + offset
+        if not (0 <= index < len(lines)):
             logging.warning(f"Line number {line_num} is out of range in file {file_path}")
+            continue
+        
+        # If the previous line already has an annotation, skip inserting again.
+        if index > 0 and '@Nullable' in lines[index - 1]:
+            continue
+        
+        # Determine the indentation from the target line.
+        target_line = lines[index]
+        indent = ""
+        for ch in target_line:
+            if ch.isspace():
+                indent += ch
+            else:
+                break
+        # Insert the @Nullable annotation on its own line above the target line.
+        annotation_line = f"{indent}@Nullable\n"
+        lines.insert(index, annotation_line)
+        offset += 1  # Account for the inserted line.
     
     with open(output_file_path, 'w') as file:
         file.writelines(lines)
 
 def create_combined_tdg(file_list):
     combined_tdg = JavaTDG()
-    file_mappings = {}  # Map node IDs to file paths
-    line_number_mapping = {}  # Track line numbers for nodes across files
+    file_mappings = {}  # Map node IDs to file paths.
+    line_number_mapping = {}  # Track line numbers for nodes across files.
     
     for file_path in file_list:
         class_tdg = JavaTDG()
         process_java_file(file_path, class_tdg)
         
         for node_id, node_data in class_tdg.graph.nodes(data=True):
-            #if node_data['attr'].get('line_number') is None:
-                #continue
-            
-            # Normalize node_id by stripping the file-specific prefix
+            # Normalize node_id by stripping the file-specific prefix.
             combined_node_id = normalize_node_id(node_id)
             
             if 'attr' not in node_data:
@@ -68,7 +84,6 @@ def create_combined_tdg(file_list):
                 actual_type=node_data['attr'].get('actual_type')
             )
             
-            # Maintain the original file mapping and line numbers
             file_mappings[combined_node_id] = file_path
             line_number_mapping[combined_node_id] = node_data['attr'].get('line_number')
         
@@ -78,9 +93,9 @@ def create_combined_tdg(file_list):
     return combined_tdg, file_mappings, line_number_mapping
 
 def normalize_node_id(node_id):
-    # Remove the file-specific part of the node_id to create a unified identifier
+    # Remove the file-specific part of the node_id to create a unified identifier.
     parts = node_id.split('.')
-    return '.'.join(parts[2:])  # This assumes the first part is the file-specific prefix
+    return '.'.join(parts[2:])  # This assumes the first part is the file-specific prefix.
 
 def process_project(project_dir, output_dir, model, batch_size):
     file_list = [os.path.join(root, file)
@@ -127,11 +142,11 @@ def process_project(project_dir, output_dir, model, batch_size):
         return
 
     annotations = []
-    counter=0
+    counter = 0
     
     for node_index in valid_prediction_node_ids:
         prediction = batch_predictions[counter, 0]
-        counter+=1
+        counter += 1
         if prediction > 0.2:
             mapped_node_id = node_id_mapper.get_id(node_index)
             if mapped_node_id is None:
@@ -155,7 +170,6 @@ def process_project(project_dir, output_dir, model, batch_size):
     file_names = set([ann[0] for ann in annotations])
     
     for file_name in file_names:
-        base_file_name = os.path.basename(file_name)
         relative_subdir = os.path.relpath(file_name, project_dir)
         output_file_path = os.path.join(output_dir, relative_subdir)
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
